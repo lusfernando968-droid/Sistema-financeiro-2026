@@ -5,7 +5,8 @@
 const SUPABASE_URL = 'https://wrwjsqizpiutfoheriuv.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indyd2pzcWl6cGl1dGZvaGVyaXV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1MzE5MjIsImV4cCI6MjEwMDEwNzkyMn0.b2K2v1IK5nE9aDW7bj5tIsQIPklVqIvBCdo2quxDGtU';
 
-let supabase = null;
+// _sb is the Supabase client instance (named to avoid collision with the CDN global 'supabase')
+let _sb = null;
 
 const DB = {
   state: {
@@ -41,25 +42,26 @@ const DB = {
 
   async init() {
     try {
-      if (window.supabase) {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      // The CDN exports 'supabase' as a global with createClient on it
+      if (typeof supabase !== 'undefined' && supabase.createClient) {
+        _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       } else {
-        console.error('Supabase client not loaded');
+        console.error('Supabase CDN not loaded correctly');
         return;
       }
 
       // Fetch all data in parallel
       const responses = await Promise.all([
-        supabase.from('wallets').select('*'),
-        supabase.from('transactions').select('*'),
-        supabase.from('categories').select('*'),
-        supabase.from('distributions').select('*'),
-        supabase.from('billings').select('*'),
-        supabase.from('banks').select('*'),
-        supabase.from('credit_lines').select('*'),
-        supabase.from('debts').select('*'),
-        supabase.from('boxes').select('*'),
-        supabase.from('box_transactions').select('*')
+        _sb.from('wallets').select('*'),
+        _sb.from('transactions').select('*'),
+        _sb.from('categories').select('*'),
+        _sb.from('distributions').select('*'),
+        _sb.from('billings').select('*'),
+        _sb.from('banks').select('*'),
+        _sb.from('credit_lines').select('*'),
+        _sb.from('debts').select('*'),
+        _sb.from('boxes').select('*'),
+        _sb.from('box_transactions').select('*')
       ]);
 
       responses.forEach((r, i) => {
@@ -91,9 +93,9 @@ const DB = {
       // Initialize default categories if table is empty
       if (this.state.categories.length === 0) {
         for (const cat of this.DEFAULT_CATEGORIES) {
-          await supabase.from('categories').insert([cat]);
+          await _sb.from('categories').insert([cat]);
         }
-        const { data: newCats } = await supabase.from('categories').select('*');
+        const { data: newCats } = await _sb.from('categories').select('*');
         this.state.categories = this._camelizeArray(newCats || []);
       }
     } catch (err) {
@@ -129,18 +131,18 @@ const DB = {
 
   async _insert(table, item) {
     const dbItem = this._snakify(item);
-    const { error } = await supabase.from(table).insert([dbItem]);
+    const { error } = await _sb.from(table).insert([dbItem]);
     if (error) console.error(`Error inserting into ${table}:`, error);
   },
 
   async _update(table, id, data) {
     const dbData = this._snakify(data);
-    const { error } = await supabase.from(table).update(dbData).eq('id', id);
+    const { error } = await _sb.from(table).update(dbData).eq('id', id);
     if (error) console.error(`Error updating ${table}:`, error);
   },
 
   async _delete(table, id) {
-    const { error } = await supabase.from(table).delete().eq('id', id);
+    const { error } = await _sb.from(table).delete().eq('id', id);
     if (error) console.error(`Error deleting from ${table}:`, error);
   },
 
@@ -173,7 +175,7 @@ const DB = {
     this.state.distributions = this.state.distributions.filter(d => d.walletId !== id);
     this.state.wallets = this.state.wallets.filter(w => w.id !== id);
     
-    supabase.from('distributions').delete().eq('wallet_id', id).then();
+    _sb.from('distributions').delete().eq('wallet_id', id).then();
     this._delete('wallets', id);
   },
 
@@ -279,8 +281,8 @@ const DB = {
     if (tx && tx.billingId) {
       this.state.transactions = this.state.transactions.filter(t => t.billingId !== tx.billingId);
       this.state.billings = this.state.billings.filter(b => b.id !== tx.billingId);
-      supabase.from('transactions').delete().eq('billing_id', tx.billingId).then();
-      supabase.from('billings').delete().eq('id', tx.billingId).then();
+      _sb.from('transactions').delete().eq('billing_id', tx.billingId).then();
+      _sb.from('billings').delete().eq('id', tx.billingId).then();
     } else {
       this.state.transactions = this.state.transactions.filter(t => t.id !== id);
       this._delete('transactions', id);
@@ -314,9 +316,9 @@ const DB = {
   
   saveDistributions(list) {
     this.state.distributions = list.map(item => ({ id: this._uuid(), ...item }));
-    supabase.from('distributions').delete().neq('id', '0').then(() => {
+    _sb.from('distributions').delete().neq('id', '00000000').then(() => {
       if (this.state.distributions.length > 0) {
-        supabase.from('distributions').insert(this.state.distributions.map(this._snakify)).then();
+        _sb.from('distributions').insert(this.state.distributions.map(d => this._snakify(d))).then();
       }
     });
   },
