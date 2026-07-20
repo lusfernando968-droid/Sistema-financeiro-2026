@@ -40,49 +40,65 @@ const DB = {
   ],
 
   async init() {
-    if (window.supabase) {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    } else {
-      console.error('Supabase client not loaded');
-      return;
-    }
-
-    // Fetch all data in parallel
-    const [
-      { data: wallets }, { data: transactions }, { data: categories },
-      { data: distributions }, { data: billings }, { data: banks },
-      { data: credit_lines }, { data: debts }, { data: boxes }, { data: box_txs }
-    ] = await Promise.all([
-      supabase.from('wallets').select('*'),
-      supabase.from('transactions').select('*'),
-      supabase.from('categories').select('*'),
-      supabase.from('distributions').select('*'),
-      supabase.from('billings').select('*'),
-      supabase.from('banks').select('*'),
-      supabase.from('credit_lines').select('*'),
-      supabase.from('debts').select('*'),
-      supabase.from('boxes').select('*'),
-      supabase.from('box_transactions').select('*')
-    ]);
-
-    this.state.wallets = this._camelizeArray(wallets || []);
-    this.state.transactions = this._camelizeArray(transactions || []);
-    this.state.categories = this._camelizeArray(categories || []);
-    this.state.distributions = this._camelizeArray(distributions || []);
-    this.state.billings = this._camelizeArray(billings || []);
-    this.state.banks = this._camelizeArray(banks || []);
-    this.state.credit_lines = this._camelizeArray(credit_lines || []);
-    this.state.debts = this._camelizeArray(debts || []);
-    this.state.boxes = this._camelizeArray(boxes || []);
-    this.state.box_transactions = this._camelizeArray(box_txs || []);
-
-    // Initialize default categories if table is empty
-    if (this.state.categories.length === 0) {
-      for (const cat of this.DEFAULT_CATEGORIES) {
-        await supabase.from('categories').insert([cat]);
+    try {
+      if (window.supabase) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      } else {
+        console.error('Supabase client not loaded');
+        return;
       }
-      const { data: newCats } = await supabase.from('categories').select('*');
-      this.state.categories = this._camelizeArray(newCats || []);
+
+      // Fetch all data in parallel
+      const responses = await Promise.all([
+        supabase.from('wallets').select('*'),
+        supabase.from('transactions').select('*'),
+        supabase.from('categories').select('*'),
+        supabase.from('distributions').select('*'),
+        supabase.from('billings').select('*'),
+        supabase.from('banks').select('*'),
+        supabase.from('credit_lines').select('*'),
+        supabase.from('debts').select('*'),
+        supabase.from('boxes').select('*'),
+        supabase.from('box_transactions').select('*')
+      ]);
+
+      responses.forEach((r, i) => {
+        if (r.error) console.error('Supabase fetch error for table index ' + i + ':', r.error);
+      });
+
+      const wallets = responses[0].data || [];
+      const transactions = responses[1].data || [];
+      const categories = responses[2].data || [];
+      const distributions = responses[3].data || [];
+      const billings = responses[4].data || [];
+      const banks = responses[5].data || [];
+      const credit_lines = responses[6].data || [];
+      const debts = responses[7].data || [];
+      const boxes = responses[8].data || [];
+      const box_txs = responses[9].data || [];
+
+      this.state.wallets = this._camelizeArray(wallets);
+      this.state.transactions = this._camelizeArray(transactions);
+      this.state.categories = this._camelizeArray(categories);
+      this.state.distributions = this._camelizeArray(distributions);
+      this.state.billings = this._camelizeArray(billings);
+      this.state.banks = this._camelizeArray(banks);
+      this.state.credit_lines = this._camelizeArray(credit_lines);
+      this.state.debts = this._camelizeArray(debts);
+      this.state.boxes = this._camelizeArray(boxes);
+      this.state.box_transactions = this._camelizeArray(box_txs);
+
+      // Initialize default categories if table is empty
+      if (this.state.categories.length === 0) {
+        for (const cat of this.DEFAULT_CATEGORIES) {
+          await supabase.from('categories').insert([cat]);
+        }
+        const { data: newCats } = await supabase.from('categories').select('*');
+        this.state.categories = this._camelizeArray(newCats || []);
+      }
+    } catch (err) {
+      console.error('Critical error in DB.init():', err);
+      if (window.App) App.toast('Erro ao conectar ao banco de dados', 'error');
     }
   },
 
