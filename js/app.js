@@ -4,9 +4,22 @@
 const App = {
 
   async init() {
-    await DB.init();
     const loader = document.getElementById('app-loading');
-    if (loader) loader.style.display = 'none';
+    
+    // Fail-safe timeout in case DB.init hangs forever for any reason
+    const failsafe = setTimeout(() => {
+      if (loader) loader.style.display = 'none';
+      console.warn('Loader hidden by fail-safe timeout');
+    }, 8000);
+
+    try {
+      await DB.init();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      clearTimeout(failsafe);
+      if (loader) loader.style.display = 'none';
+    }
     
     this._updateDate();
     this._setupModal();
