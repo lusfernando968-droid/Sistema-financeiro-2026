@@ -1,0 +1,175 @@
+/* ============================================================
+   app.js — Inicialização, roteador, modal e toast
+   ============================================================ */
+const App = {
+
+  init() {
+    DB.init();
+    this._updateDate();
+    this._setupModal();
+    this._setupConfirm();
+    this._setupFAB();
+
+    window.addEventListener('hashchange', () => this._route());
+
+    // Rota inicial
+    if (!window.location.hash || window.location.hash === '#') {
+      window.location.hash = '#/dashboard';
+    } else {
+      this._route();
+    }
+  },
+
+  /* ---------- Roteador ---------- */
+  _route() {
+    const raw  = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
+    const page = raw.split('?')[0] || 'dashboard';
+
+    // Atualiza sidebar nav
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.page === page);
+    });
+
+    // Atualiza bottom nav (mobile)
+    document.querySelectorAll('.bnav-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.page === page);
+    });
+
+    // Atualiza título
+    const titles = {
+      dashboard:    'Dashboard',
+      wallets:      'Carteiras',
+      credit:       'Crédito',
+      debts:        'Dívidas',
+      transactions: 'Transações',
+      billing:      'Faturamento',
+      architecture: 'Arquitetura',
+      categories:   'Categorias',
+    };
+    const titleEl = document.getElementById('page-title');
+    if (titleEl) titleEl.textContent = titles[page] || page;
+
+    // Renderiza página
+    const content = document.getElementById('content');
+    if (!content) return;
+
+    // Fecha menu FAB se estiver aberto ao navegar
+    document.getElementById('fab-overlay').style.display = 'none';
+
+    switch (page) {
+      case 'dashboard':    DashboardPage.render(content);    break;
+      case 'wallets':      WalletsPage.render(content);      break;
+      case 'credit':       CreditPage.render(content);       break;
+      case 'debts':        DebtsPage.render(content);        break;
+      case 'transactions': TransactionsPage.render(content, true); break;
+      case 'billing':      BillingPage.render(content);      break;
+      case 'architecture': ArchitecturePage.render(content); break;
+      case 'categories':   CategoriesPage.render(content);   break;
+      default:             DashboardPage.render(content);
+    }
+  },
+
+  /* ---------- FAB Menu (Mobile) ---------- */
+  _setupFAB() {
+    const toggle = document.getElementById('fab-menu-toggle');
+    const overlay = document.getElementById('fab-overlay');
+    
+    toggle?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      overlay.style.display = 'flex';
+      setTimeout(() => overlay.classList.add('show'), 10);
+    });
+
+    overlay?.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.style.display = 'none', 200);
+      }
+    });
+
+    // Clica em um item do menu
+    document.querySelectorAll('.fab-menu-item').forEach(item => {
+      item.addEventListener('click', () => {
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.style.display = 'none', 200);
+      });
+    });
+  },
+
+  /* ---------- Data ---------- */
+  _updateDate() {
+    const el = document.getElementById('current-date');
+    if (el) {
+      el.textContent = new Date().toLocaleDateString('pt-BR', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      });
+    }
+  },
+
+  /* ---------- Modal ---------- */
+  _setupModal() {
+    document.getElementById('modal-close')?.addEventListener('click', () => this.closeModal());
+    document.getElementById('modal-overlay')?.addEventListener('click', e => {
+      if (e.target === document.getElementById('modal-overlay')) this.closeModal();
+    });
+  },
+
+  openModal(title, bodyHTML) {
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').innerHTML    = bodyHTML;
+    document.getElementById('modal-overlay').style.display = 'flex';
+    // Foca o primeiro input
+    setTimeout(() => {
+      const first = document.querySelector('#modal-body input, #modal-body select, #modal-body textarea');
+      first?.focus();
+    }, 50);
+  },
+
+  closeModal() {
+    document.getElementById('modal-overlay').style.display = 'none';
+    document.getElementById('modal-body').innerHTML = '';
+  },
+
+  /* ---------- Confirm dialog ---------- */
+  _setupConfirm() {
+    document.getElementById('confirm-cancel')?.addEventListener('click', () => {
+      document.getElementById('confirm-overlay').style.display = 'none';
+    });
+    document.getElementById('confirm-overlay')?.addEventListener('click', e => {
+      if (e.target === document.getElementById('confirm-overlay')) {
+        document.getElementById('confirm-overlay').style.display = 'none';
+      }
+    });
+  },
+
+  confirm(title, message, onConfirm) {
+    document.getElementById('confirm-title').textContent   = title;
+    document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-overlay').style.display = 'flex';
+
+    // Remove listener anterior
+    const btn    = document.getElementById('confirm-ok');
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    newBtn.addEventListener('click', () => {
+      document.getElementById('confirm-overlay').style.display = 'none';
+      onConfirm();
+    });
+  },
+
+  /* ---------- Toast ---------- */
+  toast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.textContent = message;
+    container.appendChild(el);
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+    setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 320);
+    }, 3500);
+  },
+};
+
+document.addEventListener('DOMContentLoaded', () => App.init());
