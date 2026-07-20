@@ -3,8 +3,11 @@
    ============================================================ */
 const App = {
 
-  init() {
-    DB.init();
+  async init() {
+    await DB.init();
+    const loader = document.getElementById('app-loading');
+    if (loader) loader.style.display = 'none';
+    
     this._updateDate();
     this._setupModal();
     this._setupConfirm();

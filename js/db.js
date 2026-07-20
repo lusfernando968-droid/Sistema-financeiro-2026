@@ -1,90 +1,173 @@
 /* ============================================================
-   db.js — Camada de dados (localStorage) — v2 com Crédito e Dívidas
+   db.js — Camada de dados (Supabase Cloud + In-Memory Cache)
    ============================================================ */
+
+const SUPABASE_URL = 'https://wrwjsqizpiutfoheriuv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indyd2pzcWl6cGl1dGZvaGVyaXV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1MzE5MjIsImV4cCI6MjEwMDEwNzkyMn0.b2K2v1IK5nE9aDW7bj5tIsQIPklVqIvBCdo2quxDGtU';
+
+let supabase = null;
+
 const DB = {
-  KEYS: {
-    WALLETS:       'fin_wallets',
-    TRANSACTIONS:  'fin_transactions',
-    CATEGORIES:    'fin_categories',
-    DISTRIBUTIONS: 'fin_distributions',
-    BILLINGS:      'fin_billings',
-    BANKS:         'fin_banks',
-    CREDIT_LINES:  'fin_credit_lines',
-    DEBTS:         'fin_debts',
-    BOXES:         'fin_boxes',
-    BOX_TRANSACTIONS: 'fin_box_txs',
+  state: {
+    wallets: [],
+    transactions: [],
+    categories: [],
+    distributions: [],
+    billings: [],
+    banks: [],
+    credit_lines: [],
+    debts: [],
+    boxes: [],
+    box_transactions: []
   },
 
   DEFAULT_CATEGORIES: [
-    { id: 'c_alimentacao', name: 'Alimentação',  type: 'expense', color: '#e67e22', isDefault: true },
-    { id: 'c_transporte',  name: 'Transporte',   type: 'expense', color: '#e74c3c', isDefault: true },
-    { id: 'c_moradia',     name: 'Moradia',      type: 'expense', color: '#8e44ad', isDefault: true },
-    { id: 'c_saude',       name: 'Saúde',        type: 'expense', color: '#27ae60', isDefault: true },
-    { id: 'c_educacao',    name: 'Educação',     type: 'expense', color: '#2980b9', isDefault: true },
-    { id: 'c_lazer',       name: 'Lazer',        type: 'expense', color: '#16a085', isDefault: true },
-    { id: 'c_vestuario',   name: 'Vestuário',    type: 'expense', color: '#d35400', isDefault: true },
-    { id: 'c_tecnologia',  name: 'Tecnologia',   type: 'expense', color: '#2c3e50', isDefault: true },
-    { id: 'c_assinaturas', name: 'Assinaturas',  type: 'expense', color: '#7f8c8d', isDefault: true },
-    { id: 'c_outros_exp',  name: 'Outros',       type: 'expense', color: '#95a5a6', isDefault: true },
-    { id: 'c_salario',     name: 'Salário',      type: 'income',  color: '#27ae60', isDefault: true },
-    { id: 'c_freelance',   name: 'Freelance',    type: 'income',  color: '#2ecc71', isDefault: true },
-    { id: 'c_rendimento',  name: 'Rendimento',   type: 'income',  color: '#1abc9c', isDefault: true },
-    { id: 'c_faturamento', name: 'Faturamento',  type: 'income',  color: '#3498db', isDefault: true },
-    { id: 'c_outros_inc',  name: 'Outros',       type: 'income',  color: '#bdc3c7', isDefault: true },
+    { id: 'c_alimentacao', name: 'Alimentação',  type: 'expense', color: '#e67e22', is_default: true },
+    { id: 'c_transporte',  name: 'Transporte',   type: 'expense', color: '#e74c3c', is_default: true },
+    { id: 'c_moradia',     name: 'Moradia',      type: 'expense', color: '#8e44ad', is_default: true },
+    { id: 'c_saude',       name: 'Saúde',        type: 'expense', color: '#27ae60', is_default: true },
+    { id: 'c_educacao',    name: 'Educação',     type: 'expense', color: '#2980b9', is_default: true },
+    { id: 'c_lazer',       name: 'Lazer',        type: 'expense', color: '#16a085', is_default: true },
+    { id: 'c_vestuario',   name: 'Vestuário',    type: 'expense', color: '#d35400', is_default: true },
+    { id: 'c_tecnologia',  name: 'Tecnologia',   type: 'expense', color: '#2c3e50', is_default: true },
+    { id: 'c_assinaturas', name: 'Assinaturas',  type: 'expense', color: '#7f8c8d', is_default: true },
+    { id: 'c_outros_exp',  name: 'Outros',       type: 'expense', color: '#95a5a6', is_default: true },
+    { id: 'c_salario',     name: 'Salário',      type: 'income',  color: '#27ae60', is_default: true },
+    { id: 'c_freelance',   name: 'Freelance',    type: 'income',  color: '#2ecc71', is_default: true },
+    { id: 'c_rendimento',  name: 'Rendimento',   type: 'income',  color: '#1abc9c', is_default: true },
+    { id: 'c_faturamento', name: 'Faturamento',  type: 'income',  color: '#3498db', is_default: true },
+    { id: 'c_outros_inc',  name: 'Outros',       type: 'income',  color: '#bdc3c7', is_default: true },
   ],
 
-  /* ---------- init ---------- */
-  init() {
-    const k = this.KEYS;
-    if (!localStorage.getItem(k.WALLETS))       this._set(k.WALLETS, []);
-    if (!localStorage.getItem(k.TRANSACTIONS))  this._set(k.TRANSACTIONS, []);
-    if (!localStorage.getItem(k.DISTRIBUTIONS)) this._set(k.DISTRIBUTIONS, []);
-    if (!localStorage.getItem(k.BILLINGS))      this._set(k.BILLINGS, []);
-    if (!localStorage.getItem(k.CATEGORIES))    this._set(k.CATEGORIES, this.DEFAULT_CATEGORIES);
-    if (!localStorage.getItem(k.BANKS))         this._set(k.BANKS, []);
-    if (!localStorage.getItem(k.CREDIT_LINES))  this._set(k.CREDIT_LINES, []);
-    if (!localStorage.getItem(k.DEBTS))         this._set(k.DEBTS, []);
-    if (!localStorage.getItem(k.BOXES))         this._set(k.BOXES, []);
-    if (!localStorage.getItem(k.BOX_TRANSACTIONS)) this._set(k.BOX_TRANSACTIONS, []);
+  async init() {
+    if (window.supabase) {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } else {
+      console.error('Supabase client not loaded');
+      return;
+    }
+
+    // Fetch all data in parallel
+    const [
+      { data: wallets }, { data: transactions }, { data: categories },
+      { data: distributions }, { data: billings }, { data: banks },
+      { data: credit_lines }, { data: debts }, { data: boxes }, { data: box_txs }
+    ] = await Promise.all([
+      supabase.from('wallets').select('*'),
+      supabase.from('transactions').select('*'),
+      supabase.from('categories').select('*'),
+      supabase.from('distributions').select('*'),
+      supabase.from('billings').select('*'),
+      supabase.from('banks').select('*'),
+      supabase.from('credit_lines').select('*'),
+      supabase.from('debts').select('*'),
+      supabase.from('boxes').select('*'),
+      supabase.from('box_transactions').select('*')
+    ]);
+
+    this.state.wallets = this._camelizeArray(wallets || []);
+    this.state.transactions = this._camelizeArray(transactions || []);
+    this.state.categories = this._camelizeArray(categories || []);
+    this.state.distributions = this._camelizeArray(distributions || []);
+    this.state.billings = this._camelizeArray(billings || []);
+    this.state.banks = this._camelizeArray(banks || []);
+    this.state.credit_lines = this._camelizeArray(credit_lines || []);
+    this.state.debts = this._camelizeArray(debts || []);
+    this.state.boxes = this._camelizeArray(boxes || []);
+    this.state.box_transactions = this._camelizeArray(box_txs || []);
+
+    // Initialize default categories if table is empty
+    if (this.state.categories.length === 0) {
+      for (const cat of this.DEFAULT_CATEGORIES) {
+        await supabase.from('categories').insert([cat]);
+      }
+      const { data: newCats } = await supabase.from('categories').select('*');
+      this.state.categories = this._camelizeArray(newCats || []);
+    }
   },
 
-  _get(key)      { return JSON.parse(localStorage.getItem(key) || '[]'); },
-  _set(key, val) { localStorage.setItem(key, JSON.stringify(val)); },
-  _uuid()        { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
+  _uuid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
+
+  // Helpers to convert snake_case to camelCase for the app logic
+  _camelize(obj) {
+    if (!obj) return obj;
+    const newObj = {};
+    for (const key in obj) {
+      const camelKey = key.replace(/_([a-z])/g, g => g[1].toUpperCase());
+      // Handle the 'limit' vs 'limit' keyword mapping
+      newObj[camelKey] = obj[key];
+    }
+    return newObj;
+  },
+  _camelizeArray(arr) { return arr.map(this._camelize.bind(this)); },
+
+  _snakify(obj) {
+    if (!obj) return obj;
+    const newObj = {};
+    for (const key in obj) {
+      const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+      newObj[snakeKey] = obj[key];
+    }
+    return newObj;
+  },
+
+  async _insert(table, item) {
+    const dbItem = this._snakify(item);
+    const { error } = await supabase.from(table).insert([dbItem]);
+    if (error) console.error(`Error inserting into ${table}:`, error);
+  },
+
+  async _update(table, id, data) {
+    const dbData = this._snakify(data);
+    const { error } = await supabase.from(table).update(dbData).eq('id', id);
+    if (error) console.error(`Error updating ${table}:`, error);
+  },
+
+  async _delete(table, id) {
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) console.error(`Error deleting from ${table}:`, error);
+  },
 
   /* ============================================================
      CARTEIRAS
      ============================================================ */
-  getWallets()   { return this._get(this.KEYS.WALLETS).filter(w => !w.archived); },
-  getAllWallets() { return this._get(this.KEYS.WALLETS); },
+  getWallets()   { return this.state.wallets.filter(w => !w.archived); },
+  getAllWallets() { return this.state.wallets; },
 
   addWallet(data) {
-    const list = this._get(this.KEYS.WALLETS);
-    const item = { id: this._uuid(), archived: false, createdAt: new Date().toISOString(), ...data };
-    list.push(item);
-    this._set(this.KEYS.WALLETS, list);
+    const item = { id: this._uuid(), archived: false, ...data };
+    this.state.wallets.push(item);
+    this._insert('wallets', item);
     return item;
   },
 
   updateWallet(id, data) {
-    this._set(this.KEYS.WALLETS, this._get(this.KEYS.WALLETS).map(w => w.id === id ? { ...w, ...data } : w));
+    const idx = this.state.wallets.findIndex(w => w.id === id);
+    if (idx > -1) {
+      this.state.wallets[idx] = { ...this.state.wallets[idx], ...data };
+      this._update('wallets', id, data);
+    }
   },
 
   deleteWallet(id) {
     const txs  = this.getTransactions();
     const used = txs.some(t => t.walletId === id || t.toWalletId === id);
-    if (used) throw new Error('Esta carteira possui transações e não pode ser excluída.\nRemova as transações primeiro.');
-    this._set(this.KEYS.DISTRIBUTIONS, this._get(this.KEYS.DISTRIBUTIONS).filter(d => d.walletId !== id));
-    this._set(this.KEYS.WALLETS, this._get(this.KEYS.WALLETS).filter(w => w.id !== id));
+    if (used) throw new Error('Esta carteira possui transações e não pode ser excluída.');
+    
+    this.state.distributions = this.state.distributions.filter(d => d.walletId !== id);
+    this.state.wallets = this.state.wallets.filter(w => w.id !== id);
+    
+    supabase.from('distributions').delete().eq('wallet_id', id).then();
+    this._delete('wallets', id);
   },
 
   getWalletBalance(walletId) {
     return this.getTransactions().reduce((bal, t) => {
-      if (t.type === 'income'   && t.walletId   === walletId) return bal + t.amount;
-      if (t.type === 'expense'  && t.walletId   === walletId) return bal - t.amount;
+      if (t.type === 'income'   && t.walletId   === walletId) return bal + Number(t.amount);
+      if (t.type === 'expense'  && t.walletId   === walletId) return bal - Number(t.amount);
       if (t.type === 'transfer') {
-        if (t.walletId   === walletId) return bal - t.amount;
-        if (t.toWalletId === walletId) return bal + t.amount;
+        if (t.walletId   === walletId) return bal - Number(t.amount);
+        if (t.toWalletId === walletId) return bal + Number(t.amount);
       }
       return bal;
     }, 0);
@@ -104,39 +187,43 @@ const DB = {
   /* ============================================================
      CAIXINHAS (BOXES) E ALOCAÇÕES
      ============================================================ */
-  getBoxes() { return this._get(this.KEYS.BOXES); },
+  getBoxes() { return this.state.boxes; },
 
   addBox(data) {
-    const list = this._get(this.KEYS.BOXES);
-    const item = { id: this._uuid(), createdAt: new Date().toISOString(), ...data };
-    list.push(item);
-    this._set(this.KEYS.BOXES, list);
+    const item = { id: this._uuid(), ...data };
+    this.state.boxes.push(item);
+    this._insert('boxes', item);
     return item;
   },
 
   updateBox(id, data) {
-    this._set(this.KEYS.BOXES, this._get(this.KEYS.BOXES).map(b => b.id === id ? { ...b, ...data } : b));
+    const idx = this.state.boxes.findIndex(b => b.id === id);
+    if (idx > -1) {
+      this.state.boxes[idx] = { ...this.state.boxes[idx], ...data };
+      this._update('boxes', id, data);
+    }
   },
 
   deleteBox(id) {
     if (this.getBoxBalance(id) > 0) throw new Error('Não é possível excluir uma caixinha com saldo.');
-    this._set(this.KEYS.BOXES, this._get(this.KEYS.BOXES).filter(b => b.id !== id));
-    this._set(this.KEYS.BOX_TRANSACTIONS, this._get(this.KEYS.BOX_TRANSACTIONS).filter(t => t.boxId !== id));
+    this.state.boxes = this.state.boxes.filter(b => b.id !== id);
+    this.state.box_transactions = this.state.box_transactions.filter(t => t.boxId !== id);
+    this._delete('boxes', id);
   },
 
-  getBoxTransactions() { return this._get(this.KEYS.BOX_TRANSACTIONS); },
+  getBoxTransactions() { return this.state.box_transactions; },
 
   getBoxBalance(boxId) {
     const boxBal = this.getBoxTransactions().reduce((bal, t) => {
       if (t.boxId === boxId) {
-        return bal + (t.type === 'in' ? t.amount : -t.amount);
+        return bal + (t.type === 'in' ? Number(t.amount) : -Number(t.amount));
       }
       return bal;
     }, 0);
     
     const expBal = this.getTransactions().reduce((bal, t) => {
       if (t.type === 'expense' && t.boxId === boxId) {
-        return bal + t.amount;
+        return bal + Number(t.amount);
       }
       return bal;
     }, 0);
@@ -145,99 +232,115 @@ const DB = {
   },
 
   addBoxTransaction(data) {
-    const list = this._get(this.KEYS.BOX_TRANSACTIONS);
-    const item = { id: this._uuid(), createdAt: new Date().toISOString(), ...data };
-    list.push(item);
-    this._set(this.KEYS.BOX_TRANSACTIONS, list);
+    const item = { id: this._uuid(), ...data };
+    this.state.box_transactions.push(item);
+    this._insert('box_transactions', item);
     return item;
   },
 
   /* ============================================================
      TRANSAÇÕES
      ============================================================ */
-  getTransactions() { return this._get(this.KEYS.TRANSACTIONS); },
+  getTransactions() { return this.state.transactions; },
 
   addTransaction(data) {
-    const list = this._get(this.KEYS.TRANSACTIONS);
-    const item = { id: this._uuid(), createdAt: new Date().toISOString(), ...data };
-    list.push(item);
-    this._set(this.KEYS.TRANSACTIONS, list);
+    const item = { id: this._uuid(), ...data };
+    this.state.transactions.push(item);
+    this._insert('transactions', item);
     return item;
   },
 
   updateTransaction(id, data) {
-    this._set(this.KEYS.TRANSACTIONS, this._get(this.KEYS.TRANSACTIONS).map(t => t.id === id ? { ...t, ...data } : t));
+    const idx = this.state.transactions.findIndex(t => t.id === id);
+    if (idx > -1) {
+      this.state.transactions[idx] = { ...this.state.transactions[idx], ...data };
+      this._update('transactions', id, data);
+    }
   },
 
   deleteTransaction(id) {
     const tx = this.getTransactions().find(t => t.id === id);
     if (tx && tx.billingId) {
-      this._set(this.KEYS.TRANSACTIONS, this.getTransactions().filter(t => t.billingId !== tx.billingId));
-      this._set(this.KEYS.BILLINGS, this._get(this.KEYS.BILLINGS).filter(b => b.id !== tx.billingId));
+      this.state.transactions = this.state.transactions.filter(t => t.billingId !== tx.billingId);
+      this.state.billings = this.state.billings.filter(b => b.id !== tx.billingId);
+      supabase.from('transactions').delete().eq('billing_id', tx.billingId).then();
+      supabase.from('billings').delete().eq('id', tx.billingId).then();
     } else {
-      this._set(this.KEYS.TRANSACTIONS, this.getTransactions().filter(t => t.id !== id));
+      this.state.transactions = this.state.transactions.filter(t => t.id !== id);
+      this._delete('transactions', id);
     }
   },
 
   /* ============================================================
      CATEGORIAS
      ============================================================ */
-  getCategories() { return this._get(this.KEYS.CATEGORIES); },
+  getCategories() { return this.state.categories; },
 
   addCategory(data) {
-    const list = this._get(this.KEYS.CATEGORIES);
     const item = { id: this._uuid(), isDefault: false, ...data };
-    list.push(item);
-    this._set(this.KEYS.CATEGORIES, list);
+    this.state.categories.push(item);
+    this._insert('categories', item);
     return item;
   },
 
   deleteCategory(id) {
     const cat = this.getCategories().find(c => c.id === id);
-    if (!cat)          throw new Error('Categoria não encontrada.');
+    if (!cat) throw new Error('Categoria não encontrada.');
     if (cat.isDefault) throw new Error('Categorias padrão não podem ser removidas.');
-    this._set(this.KEYS.CATEGORIES, this.getCategories().filter(c => c.id !== id));
+    this.state.categories = this.state.categories.filter(c => c.id !== id);
+    this._delete('categories', id);
   },
 
   /* ============================================================
      DISTRIBUIÇÕES
      ============================================================ */
-  getDistributions()      { return this._get(this.KEYS.DISTRIBUTIONS); },
-  saveDistributions(list) { this._set(this.KEYS.DISTRIBUTIONS, list); },
+  getDistributions() { return this.state.distributions; },
+  
+  saveDistributions(list) {
+    this.state.distributions = list.map(item => ({ id: this._uuid(), ...item }));
+    supabase.from('distributions').delete().neq('id', '0').then(() => {
+      if (this.state.distributions.length > 0) {
+        supabase.from('distributions').insert(this.state.distributions.map(this._snakify)).then();
+      }
+    });
+  },
 
   /* ============================================================
      FATURAMENTOS
      ============================================================ */
-  getBillings() { return this._get(this.KEYS.BILLINGS); },
+  getBillings() { return this.state.billings; },
 
   addBilling(data) {
-    const list = this._get(this.KEYS.BILLINGS);
-    const item = { id: this._uuid(), createdAt: new Date().toISOString(), ...data };
-    list.push(item);
-    this._set(this.KEYS.BILLINGS, list);
+    const item = { id: this._uuid(), ...data };
+    this.state.billings.push(item);
+    this._insert('billings', item);
     return item;
   },
 
   deleteBilling(id) {
-    this._set(this.KEYS.BILLINGS, this.getBillings().filter(b => b.id !== id));
-    this._set(this.KEYS.TRANSACTIONS, this.getTransactions().filter(t => t.billingId !== id));
+    this.state.billings = this.state.billings.filter(b => b.id !== id);
+    this.state.transactions = this.state.transactions.filter(t => t.billingId !== id);
+    this._delete('billings', id);
   },
 
   /* ============================================================
      BANCOS
      ============================================================ */
-  getBanks()   { return this._get(this.KEYS.BANKS); },
+  getBanks() { return this.state.banks; },
 
   addBank(data) {
-    const list = this._get(this.KEYS.BANKS);
-    const item = { id: this._uuid(), createdAt: new Date().toISOString(), ...data };
-    list.push(item);
-    this._set(this.KEYS.BANKS, list);
+    const item = { id: this._uuid(), ...data };
+    this.state.banks.push(item);
+    this._insert('banks', item);
     return item;
   },
 
   updateBank(id, data) {
-    this._set(this.KEYS.BANKS, this._get(this.KEYS.BANKS).map(b => b.id === id ? { ...b, ...data } : b));
+    const idx = this.state.banks.findIndex(b => b.id === id);
+    if (idx > -1) {
+      this.state.banks[idx] = { ...this.state.banks[idx], ...data };
+      this._update('banks', id, data);
+    }
   },
 
   deleteBank(id) {
@@ -245,35 +348,40 @@ const DB = {
     if (lines.length > 0) throw new Error('Remova as linhas de crédito deste banco primeiro.');
     const debts = this.getDebts().filter(d => d.bankId === id);
     if (debts.length > 0) throw new Error('Remova as dívidas vinculadas a este banco primeiro.');
-    this._set(this.KEYS.BANKS, this._get(this.KEYS.BANKS).filter(b => b.id !== id));
+    
+    this.state.banks = this.state.banks.filter(b => b.id !== id);
+    this._delete('banks', id);
   },
 
   /* ============================================================
      LINHAS DE CRÉDITO
      ============================================================ */
-  getCreditLines() { return this._get(this.KEYS.CREDIT_LINES); },
+  getCreditLines() { return this.state.credit_lines; },
 
   addCreditLine(data) {
-    const list = this._get(this.KEYS.CREDIT_LINES);
-    const item = { id: this._uuid(), createdAt: new Date().toISOString(), ...data };
-    list.push(item);
-    this._set(this.KEYS.CREDIT_LINES, list);
+    const item = { id: this._uuid(), ...data };
+    this.state.credit_lines.push(item);
+    this._insert('credit_lines', item);
     return item;
   },
 
   updateCreditLine(id, data) {
-    this._set(this.KEYS.CREDIT_LINES, this._get(this.KEYS.CREDIT_LINES).map(l => l.id === id ? { ...l, ...data } : l));
+    const idx = this.state.credit_lines.findIndex(l => l.id === id);
+    if (idx > -1) {
+      this.state.credit_lines[idx] = { ...this.state.credit_lines[idx], ...data };
+      this._update('credit_lines', id, data);
+    }
   },
 
   deleteCreditLine(id) {
-    this._set(this.KEYS.CREDIT_LINES, this._get(this.KEYS.CREDIT_LINES).filter(l => l.id !== id));
+    this.state.credit_lines = this.state.credit_lines.filter(l => l.id !== id);
+    this._delete('credit_lines', id);
   },
 
-  /* Totais de crédito */
   getCreditSummary() {
     const lines = this.getCreditLines();
-    const totalLimit     = lines.reduce((s, l) => s + (l.limit || 0), 0);
-    const totalUsed      = lines.reduce((s, l) => s + (l.used  || 0), 0);
+    const totalLimit     = lines.reduce((s, l) => s + (Number(l.limit) || 0), 0);
+    const totalUsed      = lines.reduce((s, l) => s + (Number(l.used)  || 0), 0);
     const totalAvailable = totalLimit - totalUsed;
     const utilization    = totalLimit > 0 ? (totalUsed / totalLimit) * 100 : 0;
     return { totalLimit, totalUsed, totalAvailable, utilization };
@@ -282,31 +390,33 @@ const DB = {
   /* ============================================================
      DÍVIDAS
      ============================================================ */
-  getDebts() { return this._get(this.KEYS.DEBTS); },
+  getDebts() { return this.state.debts; },
 
   addDebt(data) {
-    const list = this._get(this.KEYS.DEBTS);
-    const item = { id: this._uuid(), createdAt: new Date().toISOString(), status: 'active', ...data };
-    list.push(item);
-    this._set(this.KEYS.DEBTS, list);
+    const item = { id: this._uuid(), status: 'active', ...data };
+    this.state.debts.push(item);
+    this._insert('debts', item);
     return item;
   },
 
   updateDebt(id, data) {
-    this._set(this.KEYS.DEBTS, this._get(this.KEYS.DEBTS).map(d => d.id === id ? { ...d, ...data } : d));
+    const idx = this.state.debts.findIndex(d => d.id === id);
+    if (idx > -1) {
+      this.state.debts[idx] = { ...this.state.debts[idx], ...data };
+      this._update('debts', id, data);
+    }
   },
 
   deleteDebt(id) {
-    this._set(this.KEYS.DEBTS, this._get(this.KEYS.DEBTS).filter(d => d.id !== id));
+    this.state.debts = this.state.debts.filter(d => d.id !== id);
+    this._delete('debts', id);
   },
 
-  /* Pagar uma parcela da dívida */
   payDebtInstallment(debtId, walletId, date) {
     const debt = this.getDebts().find(d => d.id === debtId);
     if (!debt) throw new Error('Dívida não encontrada.');
-    const payment = debt.monthlyPayment || 0;
+    const payment = Number(debt.monthlyPayment) || 0;
 
-    // Lança transação de saída na carteira escolhida
     if (walletId) {
       this.addTransaction({
         type:        'expense',
@@ -319,10 +429,10 @@ const DB = {
       });
     }
 
-    // Atualiza dívida
-    const newRemaining     = Math.max(0, (debt.remainingAmount || 0) - payment);
-    const newPaid          = (debt.paidInstallments || 0) + 1;
+    const newRemaining     = Math.max(0, (Number(debt.remainingAmount) || 0) - payment);
+    const newPaid          = (Number(debt.paidInstallments) || 0) + 1;
     const isFullyPaid      = newRemaining <= 0;
+    
     this.updateDebt(debtId, {
       remainingAmount:   newRemaining,
       paidInstallments:  newPaid,
@@ -331,28 +441,25 @@ const DB = {
     return payment;
   },
 
-  /* Totais de dívidas */
   getDebtSummary() {
     const debts          = this.getDebts().filter(d => d.status !== 'paid');
-    const totalRemaining = debts.reduce((s, d) => s + (d.remainingAmount || 0), 0);
-    const totalMonthly   = debts.reduce((s, d) => s + (d.monthlyPayment  || 0), 0);
+    const totalRemaining = debts.reduce((s, d) => s + (Number(d.remainingAmount) || 0), 0);
+    const totalMonthly   = debts.reduce((s, d) => s + (Number(d.monthlyPayment)  || 0), 0);
     const avgInterest    = debts.length > 0
-      ? debts.reduce((s, d) => s + (d.interestRate || 0), 0) / debts.length
+      ? debts.reduce((s, d) => s + (Number(d.interestRate) || 0), 0) / debts.length
       : 0;
     return { totalRemaining, totalMonthly, avgInterest, count: debts.length };
   },
 
-  /* Cálculo de alocação inteligente */
   getDebtAllocation(strategy = 'avalanche') {
     const debts = this.getDebts()
-      .filter(d => d.status !== 'paid' && (d.remainingAmount || 0) > 0);
+      .filter(d => d.status !== 'paid' && (Number(d.remainingAmount) || 0) > 0);
 
     if (debts.length === 0) return [];
 
-    // Avalanche: maior juros primeiro | Snowball: menor saldo primeiro
     const sorted = [...debts].sort((a, b) => {
-      if (strategy === 'avalanche') return (b.interestRate || 0) - (a.interestRate || 0);
-      return (a.remainingAmount || 0) - (b.remainingAmount || 0);
+      if (strategy === 'avalanche') return (Number(b.interestRate) || 0) - (Number(a.interestRate) || 0);
+      return (Number(a.remainingAmount) || 0) - (Number(b.remainingAmount) || 0);
     });
 
     return sorted.map((d, i) => ({
@@ -360,7 +467,7 @@ const DB = {
       priority: i + 1,
       isPrimary: i === 0,
       monthsToPayoff: d.monthlyPayment > 0
-        ? Math.ceil((d.remainingAmount || 0) / d.monthlyPayment)
+        ? Math.ceil((Number(d.remainingAmount) || 0) / Number(d.monthlyPayment))
         : null,
     }));
   },
