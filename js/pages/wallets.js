@@ -83,15 +83,15 @@ const WalletsPage = {
     
     // Income: income direto OU transferência recebida (t.toWalletId === w.id)
     const monthIncome = monthTxs.reduce((s, t) => {
-      if (t.type === 'income') return s + t.amount;
-      if (t.type === 'transfer' && t.toWalletId === w.id) return s + t.amount;
+      if (t.type === 'income') return s + Number(t.amount);
+      if (t.type === 'transfer' && t.toWalletId === w.id) return s + Number(t.amount);
       return s;
     }, 0);
 
     // Expense: expense direto OU transferência enviada (t.type === 'transfer' e t.walletId === w.id)
     const monthExpense = monthTxs.reduce((s, t) => {
-      if (t.type === 'expense') return s + t.amount;
-      if (t.type === 'transfer' && t.walletId === w.id) return s + t.amount;
+      if (t.type === 'expense') return s + Number(t.amount);
+      if (t.type === 'transfer' && t.walletId === w.id) return s + Number(t.amount);
       return s;
     }, 0);
 
@@ -144,7 +144,13 @@ const WalletsPage = {
   },
 
   _recentTable(transactions, currentWallet) {
-    const recent = [...transactions].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0, 15);
+    const recent = [...transactions]
+      .sort((a, b) => {
+        const dateComp = (b.date || '').localeCompare(a.date || '');
+        if (dateComp !== 0) return dateComp;
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+      })
+      .slice(0, 15);
     if (recent.length === 0) return `<div class="empty-state" style="padding:24px"><div class="empty-state-text">Nenhuma movimentação</div></div>`;
 
     const allWallets = DB.getWallets();
@@ -191,15 +197,15 @@ const WalletsPage = {
     
     const incomeData = months.map(m => transactions.reduce((s, t) => {
       if (!t.date?.startsWith(m.key)) return s;
-      if (t.type === 'income') return s + t.amount;
-      if (t.type === 'transfer' && t.toWalletId === currentWallet.id) return s + t.amount;
+      if (t.type === 'income') return s + Number(t.amount);
+      if (t.type === 'transfer' && t.toWalletId === currentWallet.id) return s + Number(t.amount);
       return s;
     }, 0));
 
     const expenseData = months.map(m => transactions.reduce((s, t) => {
       if (!t.date?.startsWith(m.key)) return s;
-      if (t.type === 'expense') return s + t.amount;
-      if (t.type === 'transfer' && t.walletId === currentWallet.id) return s + t.amount;
+      if (t.type === 'expense') return s + Number(t.amount);
+      if (t.type === 'transfer' && t.walletId === currentWallet.id) return s + Number(t.amount);
       return s;
     }, 0));
     

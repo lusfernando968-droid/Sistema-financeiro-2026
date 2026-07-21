@@ -106,6 +106,9 @@ const DB = {
 
   _uuid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
 
+  // Fields that Supabase returns as strings but should always be numbers
+  _NUMERIC_FIELDS: new Set(['amount','percentage','limit','used','interestRate','originalAmount','remainingAmount','monthlyPayment','paidInstallments','installments','dueDay','closingDay','utilization','totalLimit','totalUsed','totalAvailable','totalRemaining','totalMonthly','avgInterest']),
+
   // Helpers to convert snake_case to camelCase for the app logic
   _camelize(obj) {
     if (!obj || typeof obj !== 'object') return obj;
@@ -115,9 +118,14 @@ const DB = {
       const camelKey = key.replace(/_([a-z])/g, g => g[1].toUpperCase());
       const val = obj[key];
       // Recursively camelize nested arrays/objects
-      newObj[camelKey] = Array.isArray(val)
+      let converted = Array.isArray(val)
         ? val.map(v => (v && typeof v === 'object') ? this._camelize(v) : v)
         : (val && typeof val === 'object') ? this._camelize(val) : val;
+      // Auto-coerce known numeric fields from string to number
+      if (this._NUMERIC_FIELDS.has(camelKey) && converted !== null && converted !== undefined && converted !== '') {
+        converted = Number(converted);
+      }
+      newObj[camelKey] = converted;
     }
     return newObj;
   },
