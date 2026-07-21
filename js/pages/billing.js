@@ -6,7 +6,7 @@ const BillingPage = {
   render(container) {
     const wallets       = DB.getWallets();
     const distributions = DB.getDistributions();
-    const billings      = DB.getBillings().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const billings      = DB.getBillings().sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
     const totalPct      = distributions.reduce((s, d) => s + (d.percentage || 0), 0);
 
     container.innerHTML = `

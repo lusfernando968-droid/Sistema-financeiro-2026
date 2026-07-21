@@ -80,7 +80,7 @@ const TransactionsPage = {
     if (type)        txs = txs.filter(t => t.type === type);
     if (categoryId)  txs = txs.filter(t => t.categoryId === categoryId);
     if (month)       txs = txs.filter(t => t.date?.startsWith(month));
-    return txs.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+    return txs.sort((a, b) => (b.date||'').localeCompare(a.date||'') || (b.createdAt||'').localeCompare(a.createdAt||''));
   },
 
   _renderTable() {

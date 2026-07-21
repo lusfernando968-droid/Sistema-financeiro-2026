@@ -167,7 +167,7 @@ const DashboardPage = {
     
     // Resumo de Transações
     const allTxs = DB.getTransactions();
-    const txs = allTxs.filter(t => t.date && t.date.startsWith(monthKey)).sort((a,b) => a.date.localeCompare(b.date));
+    const txs = allTxs.filter(t => t.date && t.date.startsWith(monthKey)).sort((a,b) => (a.date||'').localeCompare(b.date||''));
     const income = txs.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
     const expense = txs.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
     const net = income - expense;
@@ -252,7 +252,7 @@ const DashboardPage = {
   },
 
   _recentTable(transactions, wallets) {
-    const recent = [...transactions].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
+    const recent = [...transactions].sort((a, b) => (b.date||'').localeCompare(a.date||'') || (b.createdAt||'').localeCompare(a.createdAt||'')).slice(0, 5);
     if (recent.length === 0) return `<div class="empty-state" style="padding:24px"><div class="empty-state-text">Nenhuma transação ainda</div></div>`;
 
     const rows = recent.map(t => {
