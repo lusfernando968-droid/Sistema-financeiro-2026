@@ -30,7 +30,7 @@ const App = {
 
     // Força re-render ao clicar num item de nav mesmo que a hash já seja a mesma
     // (hashchange não dispara se a hash não mudou)
-    document.querySelectorAll('.nav-item, .bnav-item').forEach(el => {
+    document.querySelectorAll('.nav-item, .bnav-item:not(#fab-menu-toggle)').forEach(el => {
       el.addEventListener('click', () => {
         // Pequeno delay para a hash ser atualizada pelo browser antes de rotear
         setTimeout(() => this._route(), 0);
