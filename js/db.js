@@ -355,7 +355,9 @@ const DB = {
   deleteBilling(id) {
     this.state.billings = this.state.billings.filter(b => b.id !== id);
     this.state.transactions = this.state.transactions.filter(t => t.billingId !== id);
+    this.state.box_transactions = this.state.box_transactions.filter(t => t.billingId !== id);
     this._delete('billings', id);
+    _sb.from('box_transactions').delete().eq('billing_id', id).then();
   },
 
   /* ============================================================

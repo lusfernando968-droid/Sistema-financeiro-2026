@@ -298,7 +298,7 @@ const BillingPage = {
         wBoxes.forEach(b => {
           const boxAmt = parseFloat((d.amount * b.percentage / 100).toFixed(2));
           if (boxAmt > 0) {
-            DB.addBoxTransaction({ boxId: b.id, type: 'in', amount: boxAmt });
+            DB.addBoxTransaction({ boxId: b.id, type: 'in', amount: boxAmt, billingId: billing.id });
           }
         });
       });
