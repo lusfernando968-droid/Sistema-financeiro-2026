@@ -28,6 +28,15 @@ const App = {
 
     window.addEventListener('hashchange', () => this._route());
 
+    // Força re-render ao clicar num item de nav mesmo que a hash já seja a mesma
+    // (hashchange não dispara se a hash não mudou)
+    document.querySelectorAll('.nav-item, .bnav-item').forEach(el => {
+      el.addEventListener('click', () => {
+        // Pequeno delay para a hash ser atualizada pelo browser antes de rotear
+        setTimeout(() => this._route(), 0);
+      });
+    });
+
     // Rota inicial
     if (!window.location.hash || window.location.hash === '#') {
       window.location.hash = '#/dashboard';
@@ -70,18 +79,31 @@ const App = {
     if (!content) return;
 
     // Fecha menu FAB se estiver aberto ao navegar
-    document.getElementById('fab-overlay').style.display = 'none';
+    const fabOverlay = document.getElementById('fab-overlay');
+    if (fabOverlay) fabOverlay.style.display = 'none';
 
-    switch (page) {
-      case 'dashboard':    DashboardPage.render(content);    break;
-      case 'wallets':      WalletsPage.render(content);      break;
-      case 'credit':       CreditPage.render(content);       break;
-      case 'debts':        DebtsPage.render(content);        break;
-      case 'transactions': TransactionsPage.render(content, true); break;
-      case 'billing':      BillingPage.render(content);      break;
-      case 'architecture': ArchitecturePage.render(content); break;
-      case 'categories':   CategoriesPage.render(content);   break;
-      default:             DashboardPage.render(content);
+    // Limpa o conteúdo antes de renderizar para garantir que não fique conteúdo antigo
+    // em caso de erro no render da nova página
+    try {
+      switch (page) {
+        case 'dashboard':    DashboardPage.render(content);         break;
+        case 'wallets':      WalletsPage.render(content);           break;
+        case 'credit':       CreditPage.render(content);            break;
+        case 'debts':        DebtsPage.render(content);             break;
+        case 'transactions': TransactionsPage.render(content, true); break;
+        case 'billing':      BillingPage.render(content);           break;
+        case 'architecture': ArchitecturePage.render(content);      break;
+        case 'categories':   CategoriesPage.render(content);        break;
+        default:             DashboardPage.render(content);
+      }
+    } catch (err) {
+      console.error('[Router] Erro ao renderizar página "' + page + '":', err);
+      content.innerHTML = `
+        <div style="padding:40px;text-align:center;color:var(--text-tertiary)">
+          <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+          <div style="font-weight:500;margin-bottom:8px">Erro ao carregar esta página</div>
+          <div style="font-size:13px">${err.message || 'Tente navegar para outra página e voltar.'}</div>
+        </div>`;
     }
   },
 
