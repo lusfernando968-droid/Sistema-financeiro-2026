@@ -108,23 +108,32 @@ const DB = {
 
   // Helpers to convert snake_case to camelCase for the app logic
   _camelize(obj) {
-    if (!obj) return obj;
+    if (!obj || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(item => this._camelize(item));
     const newObj = {};
     for (const key in obj) {
       const camelKey = key.replace(/_([a-z])/g, g => g[1].toUpperCase());
-      // Handle the 'limit' vs 'limit' keyword mapping
-      newObj[camelKey] = obj[key];
+      const val = obj[key];
+      // Recursively camelize nested arrays/objects
+      newObj[camelKey] = Array.isArray(val)
+        ? val.map(v => (v && typeof v === 'object') ? this._camelize(v) : v)
+        : (val && typeof val === 'object') ? this._camelize(val) : val;
     }
     return newObj;
   },
-  _camelizeArray(arr) { return arr.map(this._camelize.bind(this)); },
+  _camelizeArray(arr) { return arr.map(item => this._camelize(item)); },
 
   _snakify(obj) {
-    if (!obj) return obj;
+    if (!obj || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(item => this._snakify(item));
     const newObj = {};
     for (const key in obj) {
       const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-      newObj[snakeKey] = obj[key];
+      const val = obj[key];
+      // Recursively snakify nested arrays/objects
+      newObj[snakeKey] = Array.isArray(val)
+        ? val.map(v => (v && typeof v === 'object') ? this._snakify(v) : v)
+        : (val && typeof val === 'object') ? this._snakify(val) : val;
     }
     return newObj;
   },
