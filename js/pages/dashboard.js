@@ -285,10 +285,20 @@ const DashboardPage = {
     const expense = months.map(m => transactions.filter(t => t.type === 'expense' && t.date?.startsWith(m.key)).reduce((s, t) => s + t.amount, 0));
     
     this._charts.monthly = new Chart(ctx, {
-      type: 'bar',
+      type: 'line',
       data: {
         labels: months.map(m => m.label.substring(0,3)),
-        datasets: [{ label: 'Saídas', data: expense, backgroundColor: '#1a73e8', borderRadius: 4, barThickness: 'flex', maxBarThickness: 16 }],
+        datasets: [{
+          label: 'Saídas',
+          data: expense,
+          borderColor: '#e74c3c',
+          backgroundColor: 'rgba(231, 76, 60, 0.1)',
+          borderWidth: 2,
+          pointBackgroundColor: '#e74c3c',
+          pointRadius: 3,
+          fill: true,
+          tension: 0.3
+        }],
       },
       options: {
         responsive: true, maintainAspectRatio: false,
