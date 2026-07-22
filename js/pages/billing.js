@@ -294,9 +294,9 @@ const BillingPage = {
           billingId:   billing.id,
         });
 
-        const wBoxes = allBoxes.filter(b => b.walletId === d.walletId && b.percentage > 0);
+        const wBoxes = allBoxes.filter(b => b.walletId === d.walletId && Number(b.percentage) > 0);
         wBoxes.forEach(b => {
-          const boxAmt = parseFloat((d.amount * b.percentage / 100).toFixed(2));
+          const boxAmt = parseFloat((d.amount * Number(b.percentage) / 100).toFixed(2));
           if (boxAmt > 0) {
             DB.addBoxTransaction({ boxId: b.id, type: 'in', amount: boxAmt, billingId: billing.id });
           }
