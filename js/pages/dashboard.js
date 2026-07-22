@@ -80,6 +80,70 @@ const DashboardPage = {
         </div>
       </div>
 
+      <!-- Resumo Caixinhas no Dashboard -->
+      ${(() => {
+        const boxes = DB.getBoxes();
+        if (boxes.length === 0) return '';
+        const boxTxs = DB.getBoxTransactions();
+        const monthBoxTxs = boxTxs.filter(bt => bt.createdAt && bt.createdAt.substring(0, 7) === monthKey);
+        const monthBoxExpenses = monthTxs.filter(t => t.type === 'expense' && t.boxId);
+
+        const totalAllocated = boxes.reduce((s, b) => s + DB.getBoxBalance(b.id), 0);
+        const monthIn = monthBoxTxs.filter(bt => bt.type === 'in').reduce((s, bt) => s + Number(bt.amount), 0);
+        const monthOut = monthBoxTxs.filter(bt => bt.type === 'out').reduce((s, bt) => s + Number(bt.amount), 0) +
+                         monthBoxExpenses.reduce((s, t) => s + Number(t.amount), 0);
+
+        return `
+          <div class="card" style="margin-bottom:14px; background:linear-gradient(135deg, rgba(142, 68, 173, 0.04), rgba(41, 128, 185, 0.04)); border:1px solid rgba(142, 68, 173, 0.15)">
+            <div class="card-header" style="border-bottom:1px solid rgba(142, 68, 173, 0.1); padding-bottom:10px">
+              <div style="display:flex; align-items:center; gap:8px">
+                <span style="font-size:16px">📦</span>
+                <div>
+                  <span class="card-title" style="font-size:14px">Arquitetura Financeira (Caixinhas)</span>
+                  <div style="font-size:11px; color:var(--text-tertiary)">Movimentações do Mês</div>
+                </div>
+              </div>
+              <a href="#/architecture" class="btn btn-ghost btn-sm" style="font-size:11px; color:var(--primary)">Ver Caixinhas →</a>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:12px 0; text-align:center">
+              <div style="background:var(--card-bg); padding:8px 6px; border-radius:8px; border:1px solid var(--border-subtle)">
+                <div style="font-size:10px; color:var(--text-tertiary)">Total Alocado</div>
+                <div style="font-size:13px; font-weight:600; color:var(--primary); margin-top:2px">${Utils.formatBRL(totalAllocated)}</div>
+              </div>
+              <div style="background:var(--card-bg); padding:8px 6px; border-radius:8px; border:1px solid var(--border-subtle)">
+                <div style="font-size:10px; color:var(--text-tertiary)">Aportado (Mês)</div>
+                <div style="font-size:13px; font-weight:600; color:var(--success); margin-top:2px">+ ${Utils.formatBRL(monthIn)}</div>
+              </div>
+              <div style="background:var(--card-bg); padding:8px 6px; border-radius:8px; border:1px solid var(--border-subtle)">
+                <div style="font-size:10px; color:var(--text-tertiary)">Baixas/Saídas</div>
+                <div style="font-size:13px; font-weight:600; color:var(--danger); margin-top:2px">- ${Utils.formatBRL(monthOut)}</div>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:6px">
+              ${boxes.map(b => {
+                const bal = DB.getBoxBalance(b.id);
+                const bIn = monthBoxTxs.filter(bt => bt.boxId === b.id && bt.type === 'in').reduce((s, bt) => s + Number(bt.amount), 0);
+                const bOut = monthBoxTxs.filter(bt => bt.boxId === b.id && bt.type === 'out').reduce((s, bt) => s + Number(bt.amount), 0) +
+                             monthBoxExpenses.filter(t => t.boxId === b.id).reduce((s, t) => s + Number(t.amount), 0);
+
+                return `
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:var(--card-bg); border-radius:6px; font-size:12px">
+                    <span style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${Utils.escapeHtml(b.name)}</span>
+                    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0">
+                      ${bIn > 0 ? `<span style="font-size:10.5px; color:var(--success)">+${Utils.formatBRL(bIn)}</span>` : ''}
+                      ${bOut > 0 ? `<span style="font-size:10.5px; color:var(--danger)">-${Utils.formatBRL(bOut)}</span>` : ''}
+                      <span style="font-weight:600; font-size:12px">${Utils.formatBRL(bal)}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      })()}
+
       ${wallets.length === 0
         ? `<div class="card" style="margin-bottom:14px">
              <div class="empty-state">
@@ -219,7 +283,61 @@ const DashboardPage = {
     }
     doc.text(`• Volume financeiro total movimentado (entradas + saídas) foi de ${Utils.formatBRL(vol)}.`, 14, yPos); yPos += 8;
 
+    // Seção Arquitetura Financeira (Caixinhas)
+    const boxes = DB.getBoxes();
+    const boxTxs = DB.getBoxTransactions();
+    const monthBoxTxs = boxTxs.filter(bt => bt.createdAt && bt.createdAt.substring(0, 7) === monthKey);
+    // Também verificar despesas vinculadas a caixinhas no mês
+    const monthBoxExpenses = txs.filter(t => t.type === 'expense' && t.boxId);
+
+    doc.setFontSize(14);
+    doc.setTextColor(34, 36, 40);
+    doc.text('Arquitetura Financeira (Caixinhas)', 14, yPos);
+    yPos += 7;
+
+    if (boxes.length > 0) {
+      const boxRows = boxes.map(b => {
+        const wName = DB.getWallets().find(w => w.id === b.walletId)?.name || '—';
+        // Aportes via box_transactions (type 'in')
+        const inAmt = monthBoxTxs.filter(bt => bt.boxId === b.id && bt.type === 'in').reduce((s, bt) => s + Number(bt.amount), 0);
+        // Resgates via box_transactions (type 'out')
+        const outResgate = monthBoxTxs.filter(bt => bt.boxId === b.id && bt.type === 'out').reduce((s, bt) => s + Number(bt.amount), 0);
+        // Baixas/Despesas diretas ligadas a essa caixinha
+        const outExpense = monthBoxExpenses.filter(t => t.boxId === b.id).reduce((s, t) => s + Number(t.amount), 0);
+        const totalOut = outResgate + outExpense;
+        const currentBal = DB.getBoxBalance(b.id);
+
+        return [
+          b.name,
+          wName,
+          Utils.formatBRL(inAmt),
+          Utils.formatBRL(totalOut),
+          Utils.formatBRL(currentBal)
+        ];
+      });
+
+      doc.autoTable({
+        startY: yPos,
+        head: [['Caixinha', 'Carteira', 'Aportes (Mês)', 'Baixas/Saídas (Mês)', 'Saldo Atual']],
+        body: boxRows,
+        theme: 'striped',
+        headStyles: { fillColor: [142, 68, 173] },
+        styles: { fontSize: 9 }
+      });
+      yPos = doc.lastAutoTable.finalY + 12;
+    } else {
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Nenhuma caixinha configurada.', 14, yPos);
+      yPos += 10;
+    }
+
     // Tabela de Transações
+    doc.setFontSize(14);
+    doc.setTextColor(34, 36, 40);
+    doc.text('Extrato de Movimentações', 14, yPos);
+    yPos += 7;
+
     if (txs.length > 0) {
       const bodyData = txs.map(t => {
         let typeStr = '';
@@ -227,9 +345,12 @@ const DashboardPage = {
         else if (t.type === 'expense') typeStr = 'Saída';
         else typeStr = 'Transferência';
         
+        const box = t.boxId ? DB.getBoxes().find(b => b.id === t.boxId) : null;
+        const boxLabel = box ? ` [Caixinha: ${box.name}]` : '';
+
         return [
           Utils.formatDate(t.date),
-          t.description || 'S/ Descrição',
+          (t.description || 'S/ Descrição') + boxLabel,
           typeStr,
           Utils.formatBRL(t.amount)
         ];
@@ -241,9 +362,11 @@ const DashboardPage = {
         body: bodyData,
         theme: 'striped',
         headStyles: { fillColor: [41, 128, 185] },
-        styles: { fontSize: 10 }
+        styles: { fontSize: 9 }
       });
     } else {
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
       doc.text('Nenhuma transação registrada neste mês.', 14, yPos);
     }
 

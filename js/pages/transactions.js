@@ -76,6 +76,7 @@ const TransactionsPage = {
       delete_transaction: { icon: '✕', color: 'var(--danger)', label: 'Excluído' },
       add_billing: { icon: '◈', color: 'var(--primary)', label: 'Faturamento' },
       delete_billing: { icon: '✕', color: 'var(--danger)', label: 'Fat. excluído' },
+      box_transaction: { icon: '📦', color: '#8e44ad', label: 'Caixinha' },
     };
     area.innerHTML = logs.map(entry => {
       const meta = iconMap[entry.action] || { icon: '•', color: 'var(--text-tertiary)', label: entry.action };

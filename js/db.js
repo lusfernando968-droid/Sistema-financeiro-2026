@@ -292,6 +292,13 @@ const DB = {
     const item = { id: this._uuid(), ...data };
     this.state.box_transactions.push(item);
     this._insert('box_transactions', item);
+    const box = this.state.boxes.find(b => b.id === item.boxId);
+    if (box) {
+      const actionText = item.type === 'in' ? 'Aporte em caixinha' : 'Resgate de caixinha';
+      this._log('box_transaction', 'box', item.boxId,
+        `${actionText}: ${Utils.formatBRL(item.amount)} em "${box.name}"`,
+        item.amount, box.walletId, { type: item.type, boxName: box.name });
+    }
     return item;
   },
 
@@ -306,9 +313,12 @@ const DB = {
     this._insert('transactions', item);
     const walletName = this.state.wallets.find(w => w.id === item.walletId)?.name || '';
     const catName = this.state.categories.find(c => c.id === item.categoryId)?.name || '';
+    const boxName = item.boxId ? (this.state.boxes.find(b => b.id === item.boxId)?.name || '') : '';
+    const boxText = boxName ? ` (Baixa na Caixinha: ${boxName})` : '';
+
     this._log('add_transaction', 'transaction', item.id,
-      `${item.type === 'income' ? 'Entrada' : item.type === 'expense' ? 'Saída' : 'Transferência'}: ${item.description || catName || '—'} em ${walletName}`,
-      item.amount, item.walletId, { type: item.type, category: catName });
+      `${item.type === 'income' ? 'Entrada' : item.type === 'expense' ? 'Saída' : 'Transferência'}: ${item.description || catName || '—'}${boxText} em ${walletName}`,
+      item.amount, item.walletId, { type: item.type, category: catName, boxName });
     return item;
   },
 
