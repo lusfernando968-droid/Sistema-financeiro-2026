@@ -94,47 +94,64 @@ const DashboardPage = {
                          monthBoxExpenses.reduce((s, t) => s + Number(t.amount), 0);
 
         return `
-          <div class="card" style="margin-bottom:14px; background:linear-gradient(135deg, rgba(142, 68, 173, 0.04), rgba(41, 128, 185, 0.04)); border:1px solid rgba(142, 68, 173, 0.15)">
-            <div class="card-header" style="border-bottom:1px solid rgba(142, 68, 173, 0.1); padding-bottom:10px">
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-header" style="padding-bottom:10px">
               <div style="display:flex; align-items:center; gap:8px">
-                <span style="font-size:16px">📦</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="9" y1="3" x2="9" y2="21"/>
+                  <line x1="15" y1="3" x2="15" y2="21"/>
+                </svg>
                 <div>
-                  <span class="card-title" style="font-size:14px">Arquitetura Financeira (Caixinhas)</span>
-                  <div style="font-size:11px; color:var(--text-tertiary)">Movimentações do Mês</div>
+                  <span class="card-title" style="font-size:14px">Arquitetura Financeira</span>
+                  <div style="font-size:11px; color:var(--text-tertiary)">Resumo das Caixinhas no Mês</div>
                 </div>
               </div>
-              <a href="#/architecture" class="btn btn-ghost btn-sm" style="font-size:11px; color:var(--primary)">Ver Caixinhas →</a>
+              <a href="#/architecture" class="btn btn-ghost btn-sm" style="font-size:11px">Ver tudo →</a>
             </div>
             
-            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:12px 0; text-align:center">
-              <div style="background:var(--card-bg); padding:8px 6px; border-radius:8px; border:1px solid var(--border-subtle)">
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:10px 0; text-align:center">
+              <div style="background:var(--bg); padding:8px 6px; border-radius:8px">
                 <div style="font-size:10px; color:var(--text-tertiary)">Total Alocado</div>
-                <div style="font-size:13px; font-weight:600; color:var(--primary); margin-top:2px">${Utils.formatBRL(totalAllocated)}</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:2px">${Utils.formatBRL(totalAllocated)}</div>
               </div>
-              <div style="background:var(--card-bg); padding:8px 6px; border-radius:8px; border:1px solid var(--border-subtle)">
-                <div style="font-size:10px; color:var(--text-tertiary)">Aportado (Mês)</div>
-                <div style="font-size:13px; font-weight:600; color:var(--success); margin-top:2px">+ ${Utils.formatBRL(monthIn)}</div>
+              <div style="background:var(--bg); padding:8px 6px; border-radius:8px">
+                <div style="font-size:10px; color:var(--text-tertiary)">Aportes (Mês)</div>
+                <div style="font-size:13px; font-weight:600; color:var(--success); margin-top:2px">+${Utils.formatBRL(monthIn)}</div>
               </div>
-              <div style="background:var(--card-bg); padding:8px 6px; border-radius:8px; border:1px solid var(--border-subtle)">
-                <div style="font-size:10px; color:var(--text-tertiary)">Baixas/Saídas</div>
-                <div style="font-size:13px; font-weight:600; color:var(--danger); margin-top:2px">- ${Utils.formatBRL(monthOut)}</div>
+              <div style="background:var(--bg); padding:8px 6px; border-radius:8px">
+                <div style="font-size:10px; color:var(--text-tertiary)">Saídas (Mês)</div>
+                <div style="font-size:13px; font-weight:600; color:var(--danger); margin-top:2px">-${Utils.formatBRL(monthOut)}</div>
               </div>
             </div>
 
             <div style="display:flex; flex-direction:column; gap:6px">
               ${boxes.map(b => {
+                const wallet = wallets.find(w => w.id === b.walletId);
+                const walletName = wallet ? wallet.name : '';
+                const walletColor = wallet?.color || 'var(--primary)';
+                const pct = Number(b.percentage) || 0;
                 const bal = DB.getBoxBalance(b.id);
                 const bIn = monthBoxTxs.filter(bt => bt.boxId === b.id && bt.type === 'in').reduce((s, bt) => s + Number(bt.amount), 0);
                 const bOut = monthBoxTxs.filter(bt => bt.boxId === b.id && bt.type === 'out').reduce((s, bt) => s + Number(bt.amount), 0) +
                              monthBoxExpenses.filter(t => t.boxId === b.id).reduce((s, t) => s + Number(t.amount), 0);
 
                 return `
-                  <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:var(--card-bg); border-radius:6px; font-size:12px">
-                    <span style="font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${Utils.escapeHtml(b.name)}</span>
-                    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0">
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:var(--bg); border-radius:8px; font-size:12px">
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden">
+                      <div style="width:3px; height:24px; background:${walletColor}; border-radius:2px; flex-shrink:0"></div>
+                      <div style="min-width:0">
+                        <div style="display:flex; align-items:center; gap:6px">
+                          <span style="font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${Utils.escapeHtml(b.name)}</span>
+                          ${pct > 0 ? `<span style="font-size:10px; font-weight:600; color:${walletColor}; background:${walletColor}15; padding:1px 5px; border-radius:4px; flex-shrink:0">${pct}%</span>` : ''}
+                        </div>
+                        <div style="font-size:10.5px; color:var(--text-tertiary)">${Utils.escapeHtml(walletName)}</div>
+                      </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:8px">
                       ${bIn > 0 ? `<span style="font-size:10.5px; color:var(--success)">+${Utils.formatBRL(bIn)}</span>` : ''}
                       ${bOut > 0 ? `<span style="font-size:10.5px; color:var(--danger)">-${Utils.formatBRL(bOut)}</span>` : ''}
-                      <span style="font-weight:600; font-size:12px">${Utils.formatBRL(bal)}</span>
+                      <span style="font-weight:600; font-size:12.5px; color:var(--text)">${Utils.formatBRL(bal)}</span>
                     </div>
                   </div>
                 `;
