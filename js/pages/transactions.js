@@ -45,12 +45,54 @@ const TransactionsPage = {
         <div id="tx-area"></div>
         <div id="tx-pag"></div>
       </div>
+
+      <!-- Histórico de Atividades -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-header">
+          <span class="card-title">📋 Registro de Atividades</span>
+          <span style="font-size:11px;color:var(--text-tertiary)">Últimas 200 ações (adições e exclusões)</span>
+        </div>
+        <div id="activity-log-area"></div>
+      </div>
     `;
 
     this._bindFilters();
     this._renderTable();
+    this._renderActivityLog();
 
     document.getElementById('btn-new-tx')?.addEventListener('click', () => this.openForm());
+  },
+
+  _renderActivityLog() {
+    const area = document.getElementById('activity-log-area');
+    if (!area) return;
+    const logs = DB.getActivityLog();
+    if (logs.length === 0) {
+      area.innerHTML = `<div class="empty-state" style="padding:24px"><div class="empty-state-text">Nenhuma atividade registrada ainda</div></div>`;
+      return;
+    }
+    const iconMap = {
+      add_transaction: { icon: '↑', color: 'var(--success)', label: 'Adicionado' },
+      delete_transaction: { icon: '✕', color: 'var(--danger)', label: 'Excluído' },
+      add_billing: { icon: '◈', color: 'var(--primary)', label: 'Faturamento' },
+      delete_billing: { icon: '✕', color: 'var(--danger)', label: 'Fat. excluído' },
+    };
+    area.innerHTML = logs.map(entry => {
+      const meta = iconMap[entry.action] || { icon: '•', color: 'var(--text-tertiary)', label: entry.action };
+      const dateStr = entry.createdAt
+        ? new Date(entry.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+        : '—';
+      const amtStr = entry.amount ? Utils.formatBRL(Number(entry.amount)) : '';
+      return `
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border-subtle)">
+          <div style="width:28px;height:28px;border-radius:50%;background:${meta.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:700;color:${meta.color}">${meta.icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${Utils.escapeHtml(entry.description || entry.action)}</div>
+            <div style="font-size:11px;color:var(--text-tertiary)">${dateStr}</div>
+          </div>
+          ${amtStr ? `<div style="font-size:13px;font-weight:600;color:${meta.color};flex-shrink:0">${amtStr}</div>` : ''}
+        </div>`;
+    }).join('');
   },
 
   _bindFilters() {

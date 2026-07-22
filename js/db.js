@@ -19,7 +19,8 @@ const DB = {
     credit_lines: [],
     debts: [],
     boxes: [],
-    box_transactions: []
+    box_transactions: [],
+    activity_log: []
   },
 
   DEFAULT_CATEGORIES: [
@@ -61,7 +62,8 @@ const DB = {
         _sb.from('credit_lines').select('*'),
         _sb.from('debts').select('*'),
         _sb.from('boxes').select('*'),
-        _sb.from('box_transactions').select('*')
+        _sb.from('box_transactions').select('*'),
+        _sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200)
       ]);
 
       responses.forEach((r, i) => {
@@ -78,6 +80,7 @@ const DB = {
       const debts = responses[7].data || [];
       const boxes = responses[8].data || [];
       const box_txs = responses[9].data || [];
+      const logs = responses[10].data || [];
 
       this.state.wallets = this._camelizeArray(wallets);
       this.state.transactions = this._camelizeArray(transactions);
@@ -89,6 +92,7 @@ const DB = {
       this.state.debts = this._camelizeArray(debts);
       this.state.boxes = this._camelizeArray(boxes);
       this.state.box_transactions = this._camelizeArray(box_txs);
+      this.state.activity_log = this._camelizeArray(logs);
 
       // Initialize default categories if table is empty
       if (this.state.categories.length === 0) {
@@ -105,6 +109,24 @@ const DB = {
   },
 
   _uuid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
+
+  // Registra uma ação no log de atividades
+  _log(action, entityType, entityId, description, amount, walletId, metadata) {
+    const entry = {
+      id: this._uuid(),
+      action,          // 'add_transaction', 'delete_transaction', 'add_billing', 'delete_billing'
+      entity_type: entityType,
+      entity_id: entityId,
+      description,
+      amount: amount || null,
+      wallet_id: walletId || null,
+      metadata: metadata || null,
+    };
+    this.state.activity_log.unshift(entry);
+    _sb.from('activity_log').insert([entry]).then();
+  },
+
+  getActivityLog() { return this.state.activity_log; },
 
   // Fields that Supabase returns as strings but should always be numbers
   _NUMERIC_FIELDS: new Set(['amount','percentage','limit','used','interestRate','originalAmount','remainingAmount','monthlyPayment','paidInstallments','installments','dueDay','closingDay','utilization','totalLimit','totalUsed','totalAvailable','totalRemaining','totalMonthly','avgInterest']),
@@ -282,6 +304,11 @@ const DB = {
     const item = { id: this._uuid(), ...data };
     this.state.transactions.push(item);
     this._insert('transactions', item);
+    const walletName = this.state.wallets.find(w => w.id === item.walletId)?.name || '';
+    const catName = this.state.categories.find(c => c.id === item.categoryId)?.name || '';
+    this._log('add_transaction', 'transaction', item.id,
+      `${item.type === 'income' ? 'Entrada' : item.type === 'expense' ? 'Saída' : 'Transferência'}: ${item.description || catName || '—'} em ${walletName}`,
+      item.amount, item.walletId, { type: item.type, category: catName });
     return item;
   },
 
@@ -295,12 +322,23 @@ const DB = {
 
   deleteTransaction(id) {
     const tx = this.getTransactions().find(t => t.id === id);
-    if (tx && tx.billingId) {
+    if (!tx) return;
+    const walletName = this.state.wallets.find(w => w.id === tx.walletId)?.name || '';
+    if (tx.billingId) {
+      const billing = this.state.billings.find(b => b.id === tx.billingId);
+      this._log('delete_billing', 'billing', tx.billingId,
+        `Faturamento de ${Utils.formatBRL(billing?.amount || 0)} excluído (via transação)`,
+        billing?.amount, tx.walletId);
       this.state.transactions = this.state.transactions.filter(t => t.billingId !== tx.billingId);
       this.state.billings = this.state.billings.filter(b => b.id !== tx.billingId);
+      this.state.box_transactions = this.state.box_transactions.filter(bt => bt.billingId !== tx.billingId);
       _sb.from('transactions').delete().eq('billing_id', tx.billingId).then();
       _sb.from('billings').delete().eq('id', tx.billingId).then();
+      _sb.from('box_transactions').delete().eq('billing_id', tx.billingId).then();
     } else {
+      this._log('delete_transaction', 'transaction', tx.id,
+        `${tx.type === 'income' ? 'Entrada' : tx.type === 'expense' ? 'Saída' : 'Transferência'} excluída: ${tx.description || '—'} em ${walletName}`,
+        tx.amount, tx.walletId, { type: tx.type });
       this.state.transactions = this.state.transactions.filter(t => t.id !== id);
       this._delete('transactions', id);
     }
@@ -349,10 +387,17 @@ const DB = {
     const item = { id: this._uuid(), ...data };
     this.state.billings.push(item);
     this._insert('billings', item);
+    this._log('add_billing', 'billing', item.id,
+      `Faturamento de ${Utils.formatBRL(item.amount)} registrado`,
+      item.amount, null, { distributions: item.distributions });
     return item;
   },
 
   deleteBilling(id) {
+    const billing = this.state.billings.find(b => b.id === id);
+    this._log('delete_billing', 'billing', id,
+      `Faturamento de ${Utils.formatBRL(billing?.amount || 0)} excluído`,
+      billing?.amount);
     this.state.billings = this.state.billings.filter(b => b.id !== id);
     this.state.transactions = this.state.transactions.filter(t => t.billingId !== id);
     this.state.box_transactions = this.state.box_transactions.filter(t => t.billingId !== id);
