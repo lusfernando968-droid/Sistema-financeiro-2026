@@ -6,21 +6,7 @@ const App = {
   async init() {
     const loader = document.getElementById('app-loading');
     
-    // Fail-safe timeout in case DB.init hangs forever for any reason
-    const failsafe = setTimeout(() => {
-      if (loader) loader.style.display = 'none';
-      console.warn('Loader hidden by fail-safe timeout');
-    }, 8000);
-
-    try {
-      await DB.init();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      clearTimeout(failsafe);
-      if (loader) loader.style.display = 'none';
-    }
-    
+    // Configura eventos base IMEDIATAMENTE para a UI não ficar morta
     this._updateDate();
     this._setupModal();
     this._setupConfirm();
@@ -28,20 +14,35 @@ const App = {
 
     window.addEventListener('hashchange', () => this._route());
 
-    // Força re-render ao clicar num item de nav mesmo que a hash já seja a mesma
-    // (hashchange não dispara se a hash não mudou)
+    // Força re-render ao clicar num item de nav
     document.querySelectorAll('.nav-item, .bnav-item:not(#fab-menu-toggle)').forEach(el => {
       el.addEventListener('click', () => {
-        // Pequeno delay para a hash ser atualizada pelo browser antes de rotear
         setTimeout(() => this._route(), 0);
       });
     });
 
-    // Rota inicial
+    // Rota inicial (renderiza a UI vazia imediatamente enquanto o DB carrega)
     if (!window.location.hash || window.location.hash === '#') {
       window.location.hash = '#/dashboard';
     } else {
       this._route();
+    }
+
+    // Fail-safe timeout aumentado para conexões móveis lentas
+    const failsafe = setTimeout(() => {
+      if (loader) loader.style.display = 'none';
+      console.warn('Loader hidden by fail-safe timeout');
+    }, 15000);
+
+    try {
+      await DB.init();
+      // Re-renderiza a página atual com os dados carregados!
+      this._route();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      clearTimeout(failsafe);
+      if (loader) loader.style.display = 'none';
     }
   },
 
