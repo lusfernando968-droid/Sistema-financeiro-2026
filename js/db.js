@@ -41,9 +41,8 @@ const DB = {
     { id: 'c_outros_inc',  name: 'Outros',       type: 'income',  color: '#bdc3c7', is_default: true },
   ],
 
-  async init() {
+  async init(onSync) {
     try {
-      // The CDN exports 'supabase' as a global with createClient on it
       if (typeof supabase !== 'undefined' && supabase.createClient) {
         _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       } else {
@@ -51,7 +50,31 @@ const DB = {
         return;
       }
 
-      // Fetch all data in parallel
+      // 1. CARREGAMENTO IMEDIATO DO CACHE (Para tela não ficar em branco)
+      try {
+        const cached = localStorage.getItem('financas_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          Object.keys(this.state).forEach(k => {
+            if (parsed[k]) this.state[k] = parsed[k];
+          });
+        }
+      } catch (err) {
+        console.warn('Erro ao ler cache local:', err);
+      }
+
+      // 2. SINCRONIZAÇÃO EM BACKGROUND COM SUPABASE
+      // Não damos await aqui, para que o app inicie instantaneamente com o cache
+      this._syncSupabase(onSync);
+
+    } catch (err) {
+      console.error('Critical error in DB.init():', err);
+      if (window.App) App.toast('Erro ao inicializar banco de dados', 'error');
+    }
+  },
+
+  async _syncSupabase(onSync) {
+    try {
       const responses = await Promise.all([
         _sb.from('wallets').select('*'),
         _sb.from('transactions').select('*'),
@@ -70,29 +93,17 @@ const DB = {
         if (r.error) console.error('Supabase fetch error for table index ' + i + ':', r.error);
       });
 
-      const wallets = responses[0].data || [];
-      const transactions = responses[1].data || [];
-      const categories = responses[2].data || [];
-      const distributions = responses[3].data || [];
-      const billings = responses[4].data || [];
-      const banks = responses[5].data || [];
-      const credit_lines = responses[6].data || [];
-      const debts = responses[7].data || [];
-      const boxes = responses[8].data || [];
-      const box_txs = responses[9].data || [];
-      const logs = responses[10].data || [];
-
-      this.state.wallets = this._camelizeArray(wallets);
-      this.state.transactions = this._camelizeArray(transactions);
-      this.state.categories = this._camelizeArray(categories);
-      this.state.distributions = this._camelizeArray(distributions);
-      this.state.billings = this._camelizeArray(billings);
-      this.state.banks = this._camelizeArray(banks);
-      this.state.credit_lines = this._camelizeArray(credit_lines);
-      this.state.debts = this._camelizeArray(debts);
-      this.state.boxes = this._camelizeArray(boxes);
-      this.state.box_transactions = this._camelizeArray(box_txs);
-      this.state.activity_log = this._camelizeArray(logs);
+      this.state.wallets = this._camelizeArray(responses[0].data || []);
+      this.state.transactions = this._camelizeArray(responses[1].data || []);
+      this.state.categories = this._camelizeArray(responses[2].data || []);
+      this.state.distributions = this._camelizeArray(responses[3].data || []);
+      this.state.billings = this._camelizeArray(responses[4].data || []);
+      this.state.banks = this._camelizeArray(responses[5].data || []);
+      this.state.credit_lines = this._camelizeArray(responses[6].data || []);
+      this.state.debts = this._camelizeArray(responses[7].data || []);
+      this.state.boxes = this._camelizeArray(responses[8].data || []);
+      this.state.box_transactions = this._camelizeArray(responses[9].data || []);
+      this.state.activity_log = this._camelizeArray(responses[10].data || []);
 
       // Initialize default categories if table is empty
       if (this.state.categories.length === 0) {
@@ -102,9 +113,21 @@ const DB = {
         const { data: newCats } = await _sb.from('categories').select('*');
         this.state.categories = this._camelizeArray(newCats || []);
       }
+
+      // Atualiza o cache local com os dados frescos da nuvem
+      this._saveCache();
+
+      if (onSync) onSync();
     } catch (err) {
-      console.error('Critical error in DB.init():', err);
-      if (window.App) App.toast('Erro ao conectar ao banco de dados', 'error');
+      console.error('Erro na sincronização em background:', err);
+    }
+  },
+
+  _saveCache() {
+    try {
+      localStorage.setItem('financas_cache', JSON.stringify(this.state));
+    } catch (err) {
+      console.warn('Erro ao salvar cache local:', err);
     }
   },
 
@@ -171,6 +194,7 @@ const DB = {
   _dbQueue: Promise.resolve(),
 
   _enqueue(task) {
+    this._saveCache(); // Salva estado mutado instantaneamente no cache
     this._dbQueue = this._dbQueue.then(task).catch(err => {
       console.error('DB Queue Error:', err);
     });

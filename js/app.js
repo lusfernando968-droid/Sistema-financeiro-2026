@@ -35,8 +35,11 @@ const App = {
     }, 15000);
 
     try {
-      await DB.init();
-      // Re-renderiza a página atual com os dados carregados!
+      await DB.init(() => {
+        // Callback acionado quando a sincronização em background finalizar
+        this._route();
+      });
+      // Renderiza instantaneamente com os dados do Cache Local (Offline-first)
       this._route();
     } catch (e) {
       console.error(e);
