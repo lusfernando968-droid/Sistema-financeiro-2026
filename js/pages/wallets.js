@@ -51,6 +51,7 @@ const WalletsPage = {
         <div class="wallet-name">${Utils.escapeHtml(w.name)}</div>
         <div class="wallet-balance ${balance < 0 ? 'negative' : ''}">${Utils.formatBRL(balance)}</div>
         <div class="wallet-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-ghost btn-sm" onclick="WalletsPage.openReconcile('${w.id}')">Ajustar Saldo</button>
           <button class="btn btn-ghost btn-sm" onclick="WalletsPage.openTransfer('${w.id}')">Aporte</button>
           <button class="btn btn-ghost btn-sm" onclick="WalletsPage.openForm('${w.id}')">Editar</button>
           <button class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:transparent"
@@ -350,6 +351,65 @@ const WalletsPage = {
       if (!toId || !amount || amount <= 0) return;
       DB.addTransaction({ type: 'transfer', walletId: fromId, toWalletId: toId, amount, date, description });
       App.toast('Aporte realizado!', 'success');
+      App.closeModal();
+      this.render(document.getElementById('content'));
+    });
+  },
+
+  openReconcile(walletId) {
+    const w = DB.getWallets().find(x => x.id === walletId);
+    if (!w) return;
+    const sysBalance = DB.getWalletBalance(walletId);
+
+    App.openModal(`Ajustar Saldo — ${Utils.escapeHtml(w.name)}`, `
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
+        Saldo atual no sistema: <strong style="color:var(--text)">${Utils.formatBRL(sysBalance)}</strong>
+      </p>
+      <form id="reconcile-form">
+        <div class="form-group">
+          <label class="form-label">Saldo real no banco (R$) *</label>
+          <input type="number" class="form-control" id="r-amount" step="0.01" placeholder="Ex: 1500.50" required autofocus>
+          <div style="font-size:11px;color:var(--text-tertiary);margin-top:6px">O sistema criará automaticamente uma transação de ajuste para igualar os valores.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data do ajuste</label>
+          <input type="date" class="form-control" id="r-date" value="${Utils.today()}">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" onclick="App.closeModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Ajustar Saldo</button>
+        </div>
+      </form>
+    `);
+
+    document.getElementById('reconcile-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const realBalance = parseFloat(document.getElementById('r-amount').value);
+      const date = document.getElementById('r-date').value || Utils.today();
+      
+      if (isNaN(realBalance)) return;
+
+      const diff = realBalance - sysBalance;
+      
+      if (Math.abs(diff) < 0.01) {
+        App.toast('O saldo já está correto!', 'success');
+        App.closeModal();
+        return;
+      }
+
+      const type = diff > 0 ? 'income' : 'expense';
+      const amount = Math.abs(diff);
+
+      DB.addTransaction({
+        type,
+        walletId,
+        amount,
+        date,
+        description: 'Ajuste de Saldo (Conciliação Bancária)',
+        categoryId: null
+      });
+
+      App.toast('Saldo ajustado com sucesso!', 'success');
       App.closeModal();
       this.render(document.getElementById('content'));
     });

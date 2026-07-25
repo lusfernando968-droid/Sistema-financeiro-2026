@@ -168,21 +168,35 @@ const DB = {
     return newObj;
   },
 
-  async _insert(table, item) {
+  _dbQueue: Promise.resolve(),
+
+  _enqueue(task) {
+    this._dbQueue = this._dbQueue.then(task).catch(err => {
+      console.error('DB Queue Error:', err);
+    });
+  },
+
+  _insert(table, item) {
     const dbItem = this._snakify(item);
-    const { error } = await _sb.from(table).insert([dbItem]);
-    if (error) console.error(`Error inserting into ${table}:`, error);
+    this._enqueue(async () => {
+      const { error } = await _sb.from(table).insert([dbItem]);
+      if (error) console.error(`Error inserting into ${table}:`, error);
+    });
   },
 
-  async _update(table, id, data) {
+  _update(table, id, data) {
     const dbData = this._snakify(data);
-    const { error } = await _sb.from(table).update(dbData).eq('id', id);
-    if (error) console.error(`Error updating ${table}:`, error);
+    this._enqueue(async () => {
+      const { error } = await _sb.from(table).update(dbData).eq('id', id);
+      if (error) console.error(`Error updating ${table}:`, error);
+    });
   },
 
-  async _delete(table, id) {
-    const { error } = await _sb.from(table).delete().eq('id', id);
-    if (error) console.error(`Error deleting from ${table}:`, error);
+  _delete(table, id) {
+    this._enqueue(async () => {
+      const { error } = await _sb.from(table).delete().eq('id', id);
+      if (error) console.error(`Error deleting from ${table}:`, error);
+    });
   },
 
   /* ============================================================
@@ -214,8 +228,11 @@ const DB = {
     this.state.distributions = this.state.distributions.filter(d => d.walletId !== id);
     this.state.wallets = this.state.wallets.filter(w => w.id !== id);
     
-    _sb.from('distributions').delete().eq('wallet_id', id).then();
-    this._delete('wallets', id);
+    this._enqueue(async () => {
+      await _sb.from('distributions').delete().eq('wallet_id', id);
+      const { error } = await _sb.from('wallets').delete().eq('id', id);
+      if (error) console.error('Error deleting wallet:', error);
+    });
   },
 
   getWalletBalance(walletId) {
@@ -342,9 +359,12 @@ const DB = {
       this.state.transactions = this.state.transactions.filter(t => t.billingId !== tx.billingId);
       this.state.billings = this.state.billings.filter(b => b.id !== tx.billingId);
       this.state.box_transactions = this.state.box_transactions.filter(bt => bt.billingId !== tx.billingId);
-      _sb.from('transactions').delete().eq('billing_id', tx.billingId).then();
-      _sb.from('billings').delete().eq('id', tx.billingId).then();
-      _sb.from('box_transactions').delete().eq('billing_id', tx.billingId).then();
+      
+      this._enqueue(async () => {
+        await _sb.from('transactions').delete().eq('billing_id', tx.billingId);
+        await _sb.from('box_transactions').delete().eq('billing_id', tx.billingId);
+        await _sb.from('billings').delete().eq('id', tx.billingId);
+      });
     } else {
       this._log('delete_transaction', 'transaction', tx.id,
         `${tx.type === 'income' ? 'Entrada' : tx.type === 'expense' ? 'Saída' : 'Transferência'} excluída: ${tx.description || '—'} em ${walletName}`,
@@ -381,9 +401,10 @@ const DB = {
   
   saveDistributions(list) {
     this.state.distributions = list.map(item => ({ id: this._uuid(), ...item }));
-    _sb.from('distributions').delete().neq('id', '00000000').then(() => {
+    this._enqueue(async () => {
+      await _sb.from('distributions').delete().neq('id', '00000000');
       if (this.state.distributions.length > 0) {
-        _sb.from('distributions').insert(this.state.distributions.map(d => this._snakify(d))).then();
+        await _sb.from('distributions').insert(this.state.distributions.map(d => this._snakify(d)));
       }
     });
   },
@@ -411,8 +432,12 @@ const DB = {
     this.state.billings = this.state.billings.filter(b => b.id !== id);
     this.state.transactions = this.state.transactions.filter(t => t.billingId !== id);
     this.state.box_transactions = this.state.box_transactions.filter(t => t.billingId !== id);
-    this._delete('billings', id);
-    _sb.from('box_transactions').delete().eq('billing_id', id).then();
+    
+    this._enqueue(async () => {
+      await _sb.from('transactions').delete().eq('billing_id', id);
+      await _sb.from('box_transactions').delete().eq('billing_id', id);
+      await _sb.from('billings').delete().eq('id', id);
+    });
   },
 
   /* ============================================================
