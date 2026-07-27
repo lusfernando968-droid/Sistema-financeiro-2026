@@ -496,25 +496,24 @@ const DashboardPage = {
     });
 
     const isExpense = metric === 'despesas';
-    const colorHex = isExpense ? '#e74c3c' : (metric === 'patrimonio' ? '#8e44ad' : '#1abc9c');
-    const colorRgb = isExpense ? '231, 76, 60' : (metric === 'patrimonio' ? '142, 68, 173' : '26, 188, 156');
+    const colorHex = isExpense ? '#e74c3c' : (metric === 'patrimonio' ? '#3498db' : '#1abc9c');
+    const colorRgb = isExpense ? '231, 76, 60' : (metric === 'patrimonio' ? '52, 152, 219' : '26, 188, 156');
     const labelStr = isExpense ? 'Despesas' : (metric === 'patrimonio' ? 'Patrimônio Líquido' : 'Saldo Total');
 
     this._chartInstance = new Chart(ctx, {
-      type: isExpense ? 'bar' : 'line',
+      type: 'line',
       data: {
         labels: periods.map(p => p.label),
         datasets: [{
           label: labelStr,
           data: dataPoints,
           borderColor: colorHex,
-          backgroundColor: isExpense ? colorHex : `rgba(${colorRgb}, 0.1)`,
+          backgroundColor: `rgba(${colorRgb}, 0.1)`,
           borderWidth: 2,
           pointBackgroundColor: colorHex,
-          pointRadius: isExpense ? 0 : 3,
-          fill: !isExpense,
-          tension: 0.3,
-          borderRadius: isExpense ? 4 : 0
+          pointRadius: 3,
+          fill: true,
+          tension: 0.3
         }],
       },
       options: {
@@ -522,7 +521,22 @@ const DashboardPage = {
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${Utils.formatBRL(c.raw)}` } } },
         scales: {
           x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 }, color: '#999', maxRotation: 0 } },
-          y: { display: false, grid: { display: false }, beginAtZero: isExpense },
+          y: { 
+            display: true, 
+            position: 'left',
+            grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+            beginAtZero: isExpense,
+            ticks: {
+              font: { family: 'Inter', size: 10 },
+              color: '#999',
+              callback: function(value) {
+                if (Math.abs(value) >= 1000) {
+                  return (value / 1000).toFixed(value % 1000 === 0 ? 0 : 1).replace('.0', '') + 'k';
+                }
+                return value;
+              }
+            }
+          },
         },
         animation: { duration: 400, easing: 'easeOutQuart' }
       },
