@@ -5,11 +5,14 @@
    pages/dashboard.js — Visão Geral (Redesign Mobile-first)
    ============================================================ */
 const DashboardPage = {
-  _charts: {},
+  _chartState: { metric: 'saldo', time: 'month' },
+  _chartInstance: null,
 
   render(container) {
-    Object.values(this._charts).forEach(c => c?.destroy?.());
-    this._charts = {};
+    if (this._chartInstance) {
+      this._chartInstance.destroy();
+      this._chartInstance = null;
+    }
 
     const wallets = DB.getWallets();
     const transactions = DB.getTransactions();
@@ -170,19 +173,27 @@ const DashboardPage = {
              </div>
            </div>`
         : `
-          <div class="charts-grid" style="grid-template-columns:1fr; gap:14px; margin-bottom:14px">
-            <div class="card">
-              <div class="card-header">
-                <span class="card-title">Evolução do Patrimônio (6 meses)</span>
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-header" style="flex-direction:column; align-items:stretch; gap:12px; padding-bottom:12px">
+              <div style="display:flex; justify-content:space-between; align-items:center">
+                <span class="card-title">Análise Histórica</span>
               </div>
-              <div class="chart-canvas-wrapper short" style="height:180px; padding:12px"><canvas id="chart-networth"></canvas></div>
-            </div>
-            <div class="card">
-              <div class="card-header">
-                <span class="card-title">Despesas dos últimos 6 meses</span>
+              <div style="display:flex; flex-direction:column; gap:8px">
+                <!-- Filtros Métrica -->
+                <div style="display:flex; background:var(--bg); border-radius:8px; padding:4px">
+                  <button class="btn btn-ghost btn-sm chart-metric-btn ${this._chartState.metric === 'saldo' ? 'active' : ''}" data-metric="saldo" style="flex:1; font-size:11px; padding:6px; ${this._chartState.metric === 'saldo' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">Saldo Contas</button>
+                  <button class="btn btn-ghost btn-sm chart-metric-btn ${this._chartState.metric === 'patrimonio' ? 'active' : ''}" data-metric="patrimonio" style="flex:1; font-size:11px; padding:6px; ${this._chartState.metric === 'patrimonio' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">Patrimônio</button>
+                  <button class="btn btn-ghost btn-sm chart-metric-btn ${this._chartState.metric === 'despesas' ? 'active' : ''}" data-metric="despesas" style="flex:1; font-size:11px; padding:6px; ${this._chartState.metric === 'despesas' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">Despesas</button>
+                </div>
+                <!-- Filtros Tempo -->
+                <div style="display:flex; background:var(--bg); border-radius:8px; padding:4px">
+                  <button class="btn btn-ghost btn-sm chart-time-btn ${this._chartState.time === 'day' ? 'active' : ''}" data-time="day" style="flex:1; font-size:11px; padding:6px; ${this._chartState.time === 'day' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">30 Dias</button>
+                  <button class="btn btn-ghost btn-sm chart-time-btn ${this._chartState.time === 'month' ? 'active' : ''}" data-time="month" style="flex:1; font-size:11px; padding:6px; ${this._chartState.time === 'month' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">6 Meses</button>
+                  <button class="btn btn-ghost btn-sm chart-time-btn ${this._chartState.time === 'year' ? 'active' : ''}" data-time="year" style="flex:1; font-size:11px; padding:6px; ${this._chartState.time === 'year' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">5 Anos</button>
+                </div>
               </div>
-              <div class="chart-canvas-wrapper short" style="height:180px; padding:12px"><canvas id="chart-monthly"></canvas></div>
             </div>
+            <div class="chart-canvas-wrapper short" style="height:220px; padding:12px"><canvas id="unified-chart"></canvas></div>
           </div>
         `
       }
@@ -197,8 +208,21 @@ const DashboardPage = {
     `;
 
     if (wallets.length > 0) {
-      this._chartMonthly(transactions);
-      this._chartNetWorth(transactions);
+      this._renderUnifiedChart(transactions);
+
+      document.querySelectorAll('.chart-metric-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          this._chartState.metric = e.currentTarget.dataset.metric;
+          this.render(document.getElementById('content'));
+        });
+      });
+
+      document.querySelectorAll('.chart-time-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          this._chartState.time = e.currentTarget.dataset.time;
+          this.render(document.getElementById('content'));
+        });
+      });
     }
     
     document.getElementById('btn-report')?.addEventListener('click', () => this.openReportModal());
@@ -418,75 +442,89 @@ const DashboardPage = {
     return `<div>${rows}</div>`;
   },
 
-  _chartMonthly(transactions) {
-    const ctx = document.getElementById('chart-monthly');
-    if (!ctx || typeof Chart === 'undefined') return;
-    const months = Utils.getLast6Months();
-    const expense = months.map(m => transactions.filter(t => t.type === 'expense' && t.date?.startsWith(m.key)).reduce((s, t) => s + t.amount, 0));
-    
-    this._charts.monthly = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: months.map(m => m.label.substring(0,3)),
-        datasets: [{
-          label: 'Saídas',
-          data: expense,
-          borderColor: '#e74c3c',
-          backgroundColor: 'rgba(231, 76, 60, 0.1)',
-          borderWidth: 2,
-          pointBackgroundColor: '#e74c3c',
-          pointRadius: 3,
-          fill: true,
-          tension: 0.3
-        }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${Utils.formatBRL(c.parsed.y)}` } } },
-        scales: {
-          x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 }, color: '#999' } },
-          y: { display: false, grid: { display: false } },
-        },
-      },
-    });
+  _getPeriods(time) {
+    const periods = [];
+    const now = new Date();
+    if (time === 'day') {
+      for (let i=29; i>=0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const dd = String(d.getDate()).padStart(2,'0');
+        periods.push({ key: `${yyyy}-${mm}-${dd}`, label: `${dd}/${mm}` });
+      }
+    } else if (time === 'month') {
+      for (let i=5; i>=0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        periods.push({ key: `${yyyy}-${mm}`, label: `${monthNames[d.getMonth()]}/${String(yyyy).slice(2)}`, maxDate: `${yyyy}-${mm}-31` });
+      }
+    } else if (time === 'year') {
+      for (let i=4; i>=0; i--) {
+        const yyyy = now.getFullYear() - i;
+        periods.push({ key: `${yyyy}`, label: `${yyyy}`, maxDate: `${yyyy}-12-31` });
+      }
+    }
+    return periods;
   },
 
-  _chartNetWorth(transactions) {
-    const ctx = document.getElementById('chart-networth');
+  _renderUnifiedChart(transactions) {
+    const ctx = document.getElementById('unified-chart');
     if (!ctx || typeof Chart === 'undefined') return;
-    const months = Utils.getLast6Months();
-    
-    // Calculates the cumulative sum of (Income - Expense) up to the end of each month
-    const netWorthData = months.map(m => {
-      const txsUpToMonth = transactions.filter(t => t.date && t.date.substring(0, 7) <= m.key);
-      const inc = txsUpToMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-      const exp = txsUpToMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-      return inc - exp;
+
+    const { metric, time } = this._chartState;
+    const periods = this._getPeriods(time);
+    const debts = DB.getDebtSummary().totalRemaining;
+
+    const dataPoints = periods.map(p => {
+      if (metric === 'despesas') {
+        const txs = transactions.filter(t => t.type === 'expense' && t.date && t.date.startsWith(p.key));
+        return txs.reduce((s,t) => s + t.amount, 0);
+      } else {
+        const maxDate = p.maxDate || p.key;
+        const txs = transactions.filter(t => t.date && t.date <= maxDate);
+        const inc = txs.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
+        const exp = txs.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
+        let val = inc - exp;
+        if (metric === 'patrimonio') {
+          val = val - debts; // Opção 1 aprovada: subtrair a dívida atual nos pontos históricos
+        }
+        return val;
+      }
     });
-    
-    this._charts.networth = new Chart(ctx, {
-      type: 'line',
+
+    const isExpense = metric === 'despesas';
+    const colorHex = isExpense ? '#e74c3c' : (metric === 'patrimonio' ? '#8e44ad' : '#1abc9c');
+    const colorRgb = isExpense ? '231, 76, 60' : (metric === 'patrimonio' ? '142, 68, 173' : '26, 188, 156');
+    const labelStr = isExpense ? 'Despesas' : (metric === 'patrimonio' ? 'Patrimônio Líquido' : 'Saldo Total');
+
+    this._chartInstance = new Chart(ctx, {
+      type: isExpense ? 'bar' : 'line',
       data: {
-        labels: months.map(m => m.label.substring(0,3)),
+        labels: periods.map(p => p.label),
         datasets: [{
-          label: 'Patrimônio',
-          data: netWorthData,
-          borderColor: '#1abc9c',
-          backgroundColor: 'rgba(26, 188, 156, 0.1)',
+          label: labelStr,
+          data: dataPoints,
+          borderColor: colorHex,
+          backgroundColor: isExpense ? colorHex : `rgba(${colorRgb}, 0.1)`,
           borderWidth: 2,
-          pointBackgroundColor: '#1abc9c',
-          pointRadius: 3,
-          fill: true,
-          tension: 0.3
+          pointBackgroundColor: colorHex,
+          pointRadius: isExpense ? 0 : 3,
+          fill: !isExpense,
+          tension: 0.3,
+          borderRadius: isExpense ? 4 : 0
         }],
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${Utils.formatBRL(c.parsed.y)}` } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${Utils.formatBRL(c.raw)}` } } },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 }, color: '#999' } },
-          y: { display: false, grid: { display: false } },
+          x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 }, color: '#999', maxRotation: 0 } },
+          y: { display: false, grid: { display: false }, beginAtZero: isExpense },
         },
+        animation: { duration: 400, easing: 'easeOutQuart' }
       },
     });
   }
