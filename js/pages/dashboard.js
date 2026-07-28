@@ -476,7 +476,8 @@ const DashboardPage = {
 
     const { metric, time } = this._chartState;
     const periods = this._getPeriods(time);
-    const debts = DB.getDebtSummary().totalRemaining;
+    const debts = DB.getDebtSummary('payable').totalRemaining;
+    const receivables = DB.getDebtSummary('receivable').totalRemaining;
 
     const dataPoints = periods.map(p => {
       if (metric === 'despesas') {
@@ -489,7 +490,7 @@ const DashboardPage = {
         const exp = txs.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
         let val = inc - exp;
         if (metric === 'patrimonio') {
-          val = val - debts; // Opção 1 aprovada: subtrair a dívida atual nos pontos históricos
+          val = val - debts + receivables; // Subtrai dívidas a pagar, soma dívidas a receber
         }
         return val;
       }

@@ -557,15 +557,17 @@ const DB = {
     const debt = this.getDebts().find(d => d.id === debtId);
     if (!debt) throw new Error('Dívida não encontrada.');
     const payment = Number(debt.monthlyPayment) || 0;
+    
+    const isReceivable = debt.type && debt.type.startsWith('receivable_');
 
     if (walletId) {
       this.addTransaction({
-        type:        'expense',
+        type:        isReceivable ? 'income' : 'expense',
         amount:      payment,
         walletId,
         date:        date || Utils.today(),
         description: `Parcela: ${debt.name}`,
-        categoryId:  null,
+        categoryId:  isReceivable ? 'c_outros_inc' : 'c_outros_exp',
         debtId,
       });
     }
@@ -582,8 +584,10 @@ const DB = {
     return payment;
   },
 
-  getDebtSummary() {
-    const debts          = this.getDebts().filter(d => d.status !== 'paid');
+  getDebtSummary(direction = 'payable') {
+    const debts = this.getDebts().filter(d => d.status !== 'paid' && 
+      (direction === 'receivable' ? (d.type && d.type.startsWith('receivable_')) : (!d.type || !d.type.startsWith('receivable_')))
+    );
     const totalRemaining = debts.reduce((s, d) => s + (Number(d.remainingAmount) || 0), 0);
     const totalMonthly   = debts.reduce((s, d) => s + (Number(d.monthlyPayment)  || 0), 0);
     const avgInterest    = debts.length > 0
@@ -592,9 +596,11 @@ const DB = {
     return { totalRemaining, totalMonthly, avgInterest, count: debts.length };
   },
 
-  getDebtAllocation(strategy = 'avalanche') {
+  getDebtAllocation(strategy = 'avalanche', direction = 'payable') {
     const debts = this.getDebts()
-      .filter(d => d.status !== 'paid' && (Number(d.remainingAmount) || 0) > 0);
+      .filter(d => d.status !== 'paid' && (Number(d.remainingAmount) || 0) > 0 &&
+        (direction === 'receivable' ? (d.type && d.type.startsWith('receivable_')) : (!d.type || !d.type.startsWith('receivable_')))
+      );
 
     if (debts.length === 0) return [];
 
