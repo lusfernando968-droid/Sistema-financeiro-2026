@@ -485,6 +485,7 @@ const DashboardPage = {
 
     if (metric === 'caixinhas') {
       const boxes = DB.getBoxes();
+      const wallets = DB.getWallets();
       const boxTxs = DB.getBoxTransactions();
       const allExpenses = transactions.filter(t => t.type === 'expense');
 
@@ -499,9 +500,13 @@ const DashboardPage = {
           return inSum - outSum - expSum;
         });
         
+        const wallet = wallets.find(w => w.id === box.walletId);
+        const walletName = wallet ? wallet.name : 'Sem carteira';
+        const labelStr = `${box.name} (${walletName})`;
+        
         const color = colors[i % colors.length];
         return {
-          label: box.name,
+          label: labelStr,
           data: dataPoints,
           borderColor: color,
           backgroundColor: 'transparent',
@@ -556,7 +561,7 @@ const DashboardPage = {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${Utils.formatBRL(c.raw)}` } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${Utils.formatBRL(c.raw)}` } } },
         scales: {
           x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 }, color: '#999', maxRotation: 0 } },
           y: { 
