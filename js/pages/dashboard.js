@@ -476,6 +476,7 @@ const DashboardPage = {
     if (!ctx || typeof Chart === 'undefined') return;
 
     const { metric, time } = this._chartState;
+    const isExpense = metric === 'despesas';
     const periods = this._getPeriods(time);
     const debts = DB.getDebtSummary('payable').totalRemaining;
     const receivables = DB.getDebtSummary('receivable').totalRemaining;
@@ -530,9 +531,8 @@ const DashboardPage = {
         }
       });
 
-      const isExpense = metric === 'despesas';
-      const colorHex = isExpense ? '#e74c3c' : (metric === 'patrimonio' ? '#3498db' : '#1abc9c');
-      const colorRgb = isExpense ? '231, 76, 60' : (metric === 'patrimonio' ? '52, 152, 219' : '26, 188, 156');
+      const colorHex = metric === 'despesas' ? '#e74c3c' : (metric === 'patrimonio' ? '#3498db' : '#1abc9c');
+      const colorRgb = metric === 'despesas' ? '231, 76, 60' : (metric === 'patrimonio' ? '52, 152, 219' : '26, 188, 156');
       const labelStr = isExpense ? 'Despesas' : (metric === 'patrimonio' ? 'Patrimônio Líquido' : 'Saldo Total');
 
       chartDatasets = [{
