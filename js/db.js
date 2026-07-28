@@ -330,7 +330,7 @@ const DB = {
   },
 
   addBoxTransaction(data) {
-    const item = { id: this._uuid(), ...data };
+    const item = { id: this._uuid(), createdAt: new Date().toISOString(), ...data };
     this.state.box_transactions.push(item);
     this._insert('box_transactions', item);
     const box = this.state.boxes.find(b => b.id === item.boxId);

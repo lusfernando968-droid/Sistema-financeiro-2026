@@ -180,10 +180,11 @@ const DashboardPage = {
               </div>
               <div style="display:flex; flex-direction:column; gap:8px">
                 <!-- Filtros Métrica -->
-                <div style="display:flex; background:var(--bg); border-radius:8px; padding:4px">
-                  <button class="btn btn-ghost btn-sm chart-metric-btn ${this._chartState.metric === 'saldo' ? 'active' : ''}" data-metric="saldo" style="flex:1; font-size:11px; padding:6px; ${this._chartState.metric === 'saldo' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">Saldo Contas</button>
-                  <button class="btn btn-ghost btn-sm chart-metric-btn ${this._chartState.metric === 'patrimonio' ? 'active' : ''}" data-metric="patrimonio" style="flex:1; font-size:11px; padding:6px; ${this._chartState.metric === 'patrimonio' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">Patrimônio</button>
-                  <button class="btn btn-ghost btn-sm chart-metric-btn ${this._chartState.metric === 'despesas' ? 'active' : ''}" data-metric="despesas" style="flex:1; font-size:11px; padding:6px; ${this._chartState.metric === 'despesas' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">Despesas</button>
+                <div style="display:flex; background:var(--bg); border-radius:8px; padding:4px; overflow-x:auto; gap:2px">
+                  <button class="btn btn-ghost btn-sm chart-metric-btn ${this._chartState.metric === 'saldo' ? 'active' : ''}" data-metric="saldo" style="flex:1; font-size:11px; padding:6px; white-space:nowrap; ${this._chartState.metric === 'saldo' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">Saldo Contas</button>
+                  <button class="btn btn-ghost btn-sm chart-metric-btn ${this._chartState.metric === 'patrimonio' ? 'active' : ''}" data-metric="patrimonio" style="flex:1; font-size:11px; padding:6px; white-space:nowrap; ${this._chartState.metric === 'patrimonio' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">Patrimônio</button>
+                  <button class="btn btn-ghost btn-sm chart-metric-btn ${this._chartState.metric === 'despesas' ? 'active' : ''}" data-metric="despesas" style="flex:1; font-size:11px; padding:6px; white-space:nowrap; ${this._chartState.metric === 'despesas' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">Despesas</button>
+                  <button class="btn btn-ghost btn-sm chart-metric-btn ${this._chartState.metric === 'caixinhas' ? 'active' : ''}" data-metric="caixinhas" style="flex:1; font-size:11px; padding:6px; white-space:nowrap; ${this._chartState.metric === 'caixinhas' ? 'background:var(--card-bg);box-shadow:0 1px 2px rgba(0,0,0,0.05);color:var(--text)' : 'color:var(--text-tertiary)'}">Caixinhas</button>
                 </div>
                 <!-- Filtros Tempo -->
                 <div style="display:flex; background:var(--bg); border-radius:8px; padding:4px">
@@ -479,43 +480,79 @@ const DashboardPage = {
     const debts = DB.getDebtSummary('payable').totalRemaining;
     const receivables = DB.getDebtSummary('receivable').totalRemaining;
 
-    const dataPoints = periods.map(p => {
-      if (metric === 'despesas') {
-        const txs = transactions.filter(t => t.type === 'expense' && t.date && t.date.startsWith(p.key));
-        return txs.reduce((s,t) => s + t.amount, 0);
-      } else {
-        const maxDate = p.maxDate || p.key;
-        const txs = transactions.filter(t => t.date && t.date <= maxDate);
-        const inc = txs.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
-        const exp = txs.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
-        let val = inc - exp;
-        if (metric === 'patrimonio') {
-          val = val - debts + receivables; // Subtrai dívidas a pagar, soma dívidas a receber
-        }
-        return val;
-      }
-    });
+    let chartDatasets = [];
 
-    const isExpense = metric === 'despesas';
-    const colorHex = isExpense ? '#e74c3c' : (metric === 'patrimonio' ? '#3498db' : '#1abc9c');
-    const colorRgb = isExpense ? '231, 76, 60' : (metric === 'patrimonio' ? '52, 152, 219' : '26, 188, 156');
-    const labelStr = isExpense ? 'Despesas' : (metric === 'patrimonio' ? 'Patrimônio Líquido' : 'Saldo Total');
+    if (metric === 'caixinhas') {
+      const boxes = DB.getBoxes();
+      const boxTxs = DB.getBoxTransactions();
+      const allExpenses = transactions.filter(t => t.type === 'expense');
+
+      const colors = ['#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1c40f', '#e67e22', '#1abc9c', '#34495e'];
+
+      chartDatasets = boxes.map((box, i) => {
+        const dataPoints = periods.map(p => {
+          const maxDate = p.maxDate || p.key;
+          const inSum = boxTxs.filter(t => t.boxId === box.id && t.type === 'in' && (t.createdAt || '2000').substring(0, 10) <= maxDate).reduce((s,t) => s + Number(t.amount), 0);
+          const outSum = boxTxs.filter(t => t.boxId === box.id && t.type === 'out' && (t.createdAt || '2000').substring(0, 10) <= maxDate).reduce((s,t) => s + Number(t.amount), 0);
+          const expSum = allExpenses.filter(t => t.boxId === box.id && t.date <= maxDate).reduce((s,t) => s + Number(t.amount), 0);
+          return inSum - outSum - expSum;
+        });
+        
+        const color = colors[i % colors.length];
+        return {
+          label: box.name,
+          data: dataPoints,
+          borderColor: color,
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointBackgroundColor: color,
+          pointRadius: 2,
+          fill: false,
+          tension: 0.3
+        };
+      });
+
+    } else {
+      const dataPoints = periods.map(p => {
+        if (metric === 'despesas') {
+          const txs = transactions.filter(t => t.type === 'expense' && t.date && t.date.startsWith(p.key));
+          return txs.reduce((s,t) => s + t.amount, 0);
+        } else {
+          const maxDate = p.maxDate || p.key;
+          const txs = transactions.filter(t => t.date && t.date <= maxDate);
+          const inc = txs.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
+          const exp = txs.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
+          let val = inc - exp;
+          if (metric === 'patrimonio') {
+            val = val - debts + receivables;
+          }
+          return val;
+        }
+      });
+
+      const isExpense = metric === 'despesas';
+      const colorHex = isExpense ? '#e74c3c' : (metric === 'patrimonio' ? '#3498db' : '#1abc9c');
+      const colorRgb = isExpense ? '231, 76, 60' : (metric === 'patrimonio' ? '52, 152, 219' : '26, 188, 156');
+      const labelStr = isExpense ? 'Despesas' : (metric === 'patrimonio' ? 'Patrimônio Líquido' : 'Saldo Total');
+
+      chartDatasets = [{
+        label: labelStr,
+        data: dataPoints,
+        borderColor: colorHex,
+        backgroundColor: `rgba(${colorRgb}, 0.1)`,
+        borderWidth: 2,
+        pointBackgroundColor: colorHex,
+        pointRadius: 3,
+        fill: true,
+        tension: 0.3
+      }];
+    }
 
     this._chartInstance = new Chart(ctx, {
       type: 'line',
       data: {
         labels: periods.map(p => p.label),
-        datasets: [{
-          label: labelStr,
-          data: dataPoints,
-          borderColor: colorHex,
-          backgroundColor: `rgba(${colorRgb}, 0.1)`,
-          borderWidth: 2,
-          pointBackgroundColor: colorHex,
-          pointRadius: 3,
-          fill: true,
-          tension: 0.3
-        }],
+        datasets: chartDatasets,
       },
       options: {
         responsive: true, maintainAspectRatio: false,
