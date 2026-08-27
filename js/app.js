@@ -73,6 +73,7 @@ const App = {
       transactions: 'Transações',
       billing:      'Faturamento',
       architecture: 'Arquitetura',
+      investments:  'Investimentos',
       categories:   'Categorias',
     };
     const titleEl = document.getElementById('page-title');
@@ -97,6 +98,7 @@ const App = {
         case 'transactions': TransactionsPage.render(content, true); break;
         case 'billing':      BillingPage.render(content);           break;
         case 'architecture': ArchitecturePage.render(content);      break;
+        case 'investments':  InvestmentsPage.render(content);       break;
         case 'categories':   CategoriesPage.render(content);        break;
         default:             DashboardPage.render(content);
       }

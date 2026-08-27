@@ -36,7 +36,7 @@ const DashboardPage = {
           <div class="page-header-title" style="font-size:22px;letter-spacing:-0.5px">Olá, Luiz!</div>
           <div class="page-header-sub">Veja o resumo das suas finanças</div>
         </div>
-        <button class="btn btn-primary btn-sm" id="btn-report" title="Gerar Relatório em PDF">
+        <button class="btn btn-primary btn-sm" id="btn-report" title="Gerar Relatório Inteligente">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
@@ -305,25 +305,111 @@ const DashboardPage = {
     doc.text(`Total de Saídas: ${Utils.formatBRL(expense)}`, 14, 46);
     doc.text(`Resultado Líquido: ${Utils.formatBRL(net)}`, 14, 52);
 
-    // Seção de Insights
-    doc.setFontSize(14);
-    doc.text('Insights do Mês', 14, 64);
-    doc.setFontSize(10);
-    doc.setTextColor(80, 80, 80);
-    
-    let yPos = 71;
-    if (income > 0) {
-      doc.text(`• Você consumiu ${pctSpent}% da sua receita neste mês.`, 14, yPos); yPos += 6;
-      if (pctSpent < 100) {
-        doc.text(`• Você conseguiu reter / poupar ${Utils.formatBRL(net)} (${100 - pctSpent}% da receita).`, 14, yPos); yPos += 6;
+    // Mentor Feedback Logic
+    const realPct = income > 0 ? Math.round((expense / income) * 100) : (expense > 0 ? 100 : 0);
+    let mentorTitle = 'Análise do Mês (Mentor Financeiro)';
+    let mentorImpact = '';
+    let mentorMessage = '';
+
+    if (income === 0 && expense === 0) {
+      mentorImpact = 'Mês Parado: Nenhuma movimentação registrada.';
+      mentorMessage = 'Comece a registrar suas entradas e saídas para analisar sua saúde financeira.';
+    } else if (income === 0 && expense > 0) {
+      mentorImpact = 'Atenção Máxima: Só saídas, nenhuma entrada!';
+      mentorMessage = 'Você gastou sem registrar nenhuma receita este mês. Cuidado para não esvaziar suas reservas.';
+    } else {
+      if (realPct > 100) {
+        mentorImpact = `Sinal Vermelho: Você gastou ${realPct}% da sua receita este mês!`;
+        mentorMessage = 'Seu custo de vida ultrapassou seus ganhos. Se isso for uma emergência, tudo bem. Mas se for rotina, é hora de cortar gastos drasticamente ou buscar novas rendas.';
+      } else if (realPct >= 80) {
+        mentorImpact = `Sinal Amarelo: Você já consumiu ${realPct}% da sua receita.`;
+        mentorMessage = 'Sua margem de segurança está bem apertada. Cuidado com imprevistos no fim do mês! Tente manter seus gastos abaixo de 70%.';
+      } else if (realPct >= 50) {
+        mentorImpact = `No Caminho Certo: Você consumiu ${realPct}% da sua receita.`;
+        mentorMessage = 'Ótimo equilíbrio! Você está vivendo com margem e construindo seu patrimônio. Continue direcionando a sobra para suas caixinhas de investimento.';
       } else {
-        doc.text(`• Atenção: Seus gastos ultrapassaram sua receita neste mês.`, 14, yPos); yPos += 6;
+        mentorImpact = `Excelente: Você gastou apenas ${realPct}% da sua receita!`;
+        mentorMessage = 'Poder de poupança incrível. Com essa capacidade de reter capital, seus investimentos vão crescer muito rápido. Parabéns!';
       }
     }
+
+    doc.setFontSize(14);
+    doc.setTextColor(34, 36, 40);
+    doc.text(mentorTitle, 14, 64);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text(mentorImpact, 14, 72);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    const splitMsg = doc.splitTextToSize(mentorMessage, 180);
+    doc.text(splitMsg, 14, 78);
+    let yPos = 78 + (splitMsg.length * 5) + 6;
+
     if (topCatAmt > 0) {
       doc.text(`• Sua maior área de gasto foi com "${topCatName}", totalizando ${Utils.formatBRL(topCatAmt)}.`, 14, yPos); yPos += 6;
     }
-    doc.text(`• Volume financeiro total movimentado (entradas + saídas) foi de ${Utils.formatBRL(vol)}.`, 14, yPos); yPos += 8;
+    doc.text(`• Volume financeiro total movimentado (entradas + saídas) foi de ${Utils.formatBRL(vol)}.`, 14, yPos); yPos += 12;
+
+    // Gerar Gráfico de Categorias em Base64
+    if (typeof Chart !== 'undefined' && Object.keys(catMap).length > 0) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 400;
+        canvas.height = 200;
+        canvas.style.position = 'absolute';
+        canvas.style.left = '-9999px';
+        document.body.appendChild(canvas);
+        
+        const catLabels = [];
+        const catData = [];
+        const bgColors = ['#ff6384', '#36a2eb', '#cc65fe', '#ffce56', '#4bc0c0', '#9966ff', '#ff9f40', '#c9cbcf'];
+        const sortedCats = Object.entries(catMap).sort((a,b) => b[1] - a[1]);
+        
+        sortedCats.forEach(([cId, amt]) => {
+          if (amt > 0) {
+            const c = DB.getCategories().find(x => x.id === cId);
+            catLabels.push(c ? c.name : 'Outros');
+            catData.push(amt);
+          }
+        });
+
+        const chart = new Chart(canvas, {
+          type: 'doughnut',
+          data: {
+            labels: catLabels,
+            datasets: [{
+              data: catData,
+              backgroundColor: bgColors,
+              borderWidth: 1
+            }]
+          },
+          options: {
+            animation: false, // Fundamental para toBase64Image funcionar síncrono
+            responsive: false,
+            plugins: {
+              legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } }
+            }
+          }
+        });
+
+        const imgData = chart.toBase64Image();
+        doc.setFontSize(14);
+        doc.setTextColor(34, 36, 40);
+        doc.text('Distribuição de Despesas', 14, yPos);
+        yPos += 4;
+        doc.addImage(imgData, 'PNG', 14, yPos, 120, 60);
+        yPos += 68;
+
+        chart.destroy();
+        document.body.removeChild(canvas);
+      } catch(err) {
+        console.error('Erro ao gerar gráfico pro PDF', err);
+      }
+    }
 
     // Seção Arquitetura Financeira (Caixinhas)
     const boxes = DB.getBoxes();

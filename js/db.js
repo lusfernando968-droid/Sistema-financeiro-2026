@@ -343,6 +343,35 @@ const DB = {
     return item;
   },
 
+  registerInvestmentYield(boxId, amount, isProfit) {
+    const box = this.state.boxes.find(b => b.id === boxId);
+    if (!box) throw new Error('Caixinha não encontrada.');
+    
+    const date = Utils.today();
+    const type = isProfit ? 'income' : 'expense';
+    const category = this.state.categories.find(c => c.id === 'c_rendimento') || this.state.categories[0];
+    const catId = isProfit ? category?.id : 'c_outros_exp'; // using rendimento or outros_exp
+    
+    // 1. Add transaction to the wallet (increases or decreases wallet total balance without touching free balance)
+    this.addTransaction({
+      type,
+      amount,
+      walletId: box.walletId,
+      date,
+      description: (isProfit ? 'Rendimento: ' : 'Prejuízo: ') + box.name,
+      categoryId: catId,
+      // We don't set boxId here because if we do, for expenses, it reduces the box balance, but we ALSO do a boxTransaction out. Wait.
+      // Let's not set boxId here so it doesn't double count for expenses.
+    });
+
+    // 2. Add box transaction to increase or decrease the box balance directly
+    this.addBoxTransaction({
+      boxId,
+      type: isProfit ? 'in' : 'out',
+      amount
+    });
+  },
+
   /* ============================================================
      TRANSAÇÕES
      ============================================================ */
@@ -560,7 +589,7 @@ const DB = {
     
     const isReceivable = debt.type && debt.type.startsWith('receivable_');
 
-    if (walletId) {
+    if (walletId && walletId !== 'none') {
       this.addTransaction({
         type:        isReceivable ? 'income' : 'expense',
         amount:      payment,
