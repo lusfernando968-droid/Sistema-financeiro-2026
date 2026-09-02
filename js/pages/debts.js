@@ -34,12 +34,12 @@ const DebtsPage = {
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">Total Restante</div>
-          <div class="stat-value" style="color:var(--${isReceivable ? 'success' : 'danger'})">${Utils.formatBRL(summary.totalRemaining)}</div>
+          <div class="stat-value" style="color:var(--text)">${isReceivable ? '↗' : '↘'} ${Utils.formatBRL(summary.totalRemaining)}</div>
           <div class="stat-sub">${summary.count} registro(s) ativo(s)</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">${isReceivable ? 'Receita Mensal' : 'Custo Mensal'}</div>
-          <div class="stat-value" style="color:var(--${isReceivable ? 'success' : 'warning-text'})">${Utils.formatBRL(summary.totalMonthly)}</div>
+          <div class="stat-value" style="color:var(--text)">${isReceivable ? '↗' : '↘'} ${Utils.formatBRL(summary.totalMonthly)}</div>
           <div class="stat-sub">${isReceivable ? 'Entrada prevista' : 'Comprometimento de renda'}</div>
         </div>
         <div class="stat-card" style="grid-column: span 2">
@@ -75,12 +75,12 @@ const DebtsPage = {
             </p>
             <div style="background:var(--card-bg); padding:16px; border-radius:8px; border:1px solid var(--border-subtle); box-shadow:0 2px 4px rgba(0,0,0,0.02)">
               <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px">
-                <span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:10px;padding:4px 8px;font-weight:700">#1 PRIORIDADE</span>
+                <span class="badge" style="background:var(--border-subtle);color:var(--text-secondary);font-size:10px;padding:4px 8px;font-weight:700">#1 PRIORIDADE</span>
                 <strong style="color:var(--text);font-size:16px">${Utils.escapeHtml(allocation[0].name)}</strong>
               </div>
               <div style="display:flex; justify-content:space-between; font-size:13px; color:var(--text-secondary)">
                 <span>Restante: <strong style="color:var(--text)">${Utils.formatBRL(allocation[0].remainingAmount)}</strong></span>
-                <span>Juros: <strong style="color:var(--${isReceivable ? 'success' : 'danger'})">${allocation[0].interestRate}% a.m.</strong></span>
+                <span>Juros: <strong style="color:var(--text)">${allocation[0].interestRate}% a.m.</strong></span>
               </div>
             </div>
           </div>
@@ -124,19 +124,32 @@ const DebtsPage = {
       ? Math.min(100, ((debt.originalAmount - debt.remainingAmount) / debt.originalAmount) * 100)
       : 0;
 
+    // Calculando parcelas reais baseadas nos valores (para corrigir erros de preenchimento manual)
+    let computedPaid = debt.paidInstallments || 0;
+    let computedTotal = debt.installments || '?';
+    
+    if (debt.originalAmount > 0 && debt.monthlyPayment > 0) {
+      const calcTotal = Math.round(debt.originalAmount / debt.monthlyPayment);
+      const amountPaid = debt.originalAmount - debt.remainingAmount;
+      const calcPaid = Math.round(amountPaid / debt.monthlyPayment);
+      
+      if (calcTotal > 0) computedTotal = calcTotal;
+      if (calcPaid >= 0) computedPaid = calcPaid;
+    }
+
     return `
       <div class="card" style="margin-bottom:16px; padding:20px; border-radius:12px; border:1px solid var(--border-subtle); box-shadow:0 2px 8px rgba(0,0,0,0.04); position:relative">
         
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px">
           <div>
-            ${debt.isPrimary ? `<span class="badge" style="background:var(--primary-light); color:var(--primary); margin-bottom:8px; font-size:10px; padding:4px 8px; font-weight:700">ALTA PRIORIDADE</span>` : ''}
-            <div style="font-weight:700; font-size:16px; color:var(--text)">${Utils.escapeHtml(debt.name)}</div>
+            ${debt.isPrimary ? `<span class="badge" style="background:var(--border-subtle); color:var(--text-secondary); margin-bottom:8px; font-size:10px; padding:4px 8px; font-weight:700">ALTA PRIORIDADE</span>` : ''}
+            <div style="font-size:16px; font-weight:600; color:var(--text)">${Utils.escapeHtml(debt.name)}</div>
             <div style="font-size:12px; color:var(--text-tertiary); margin-top:4px; display:flex; align-items:center; gap:6px">
               ${bank ? `<span class="color-dot" style="background:${bank.color || '#ccc'}"></span> ${Utils.escapeHtml(bank.name)}` : 'Sem vínculo bancário'}
             </div>
           </div>
           <div style="display:flex; gap:8px">
-            <button class="btn btn-primary btn-sm" style="background:var(--${isReceivable ? 'success' : 'primary'}); font-weight:600; padding:6px 12px" onclick="DebtsPage.openPaymentModal('${debt.id}')">${isReceivable ? 'Receber' : 'Pagar'}</button>
+            <button class="btn btn-primary btn-sm" style="background:var(--text); color:var(--bg); border:none; font-weight:600; padding:6px 12px" onclick="DebtsPage.openPaymentModal('${debt.id}')">${isReceivable ? 'Receber' : 'Pagar'}</button>
             <button class="btn-icon" onclick="DebtsPage.openDebtForm('${debt.id}')" style="background:var(--bg); border:1px solid var(--border-subtle); width:32px; height:32px; border-radius:6px; display:flex; align-items:center; justify-content:center">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
             </button>
@@ -146,12 +159,12 @@ const DebtsPage = {
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; background:var(--bg); padding:12px 16px; border-radius:8px">
           <div>
             <div style="font-size:11px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px">Saldo Restante</div>
-            <div style="font-size:20px; font-weight:700; color:var(--${isReceivable ? 'success' : 'danger'})">${Utils.formatBRL(debt.remainingAmount)}</div>
+            <div style="font-size:20px; font-weight:700; color:var(--text)">${Utils.formatBRL(debt.remainingAmount)}</div>
           </div>
           <div style="text-align:right">
             <div style="font-size:11px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px">Parcela Mensal</div>
             <div style="font-size:16px; font-weight:600; color:var(--text)">${Utils.formatBRL(debt.monthlyPayment)}</div>
-            ${debt.dueDate ? `<div style="font-size:11px; color:var(--primary); font-weight:600; margin-top:2px">Vence dia ${debt.dueDate}</div>` : ''}
+            ${debt.dueDay ? `<div style="font-size:11px; color:var(--primary); font-weight:600; margin-top:2px">Vence dia ${debt.dueDay}</div>` : ''}
           </div>
         </div>
 
@@ -160,15 +173,15 @@ const DebtsPage = {
             <span>Progresso (${progress.toFixed(0)}%)</span>
             <span>Original: ${Utils.formatBRL(debt.originalAmount)}</span>
           </div>
-          <div class="progress-bar" style="height:6px; border-radius:3px">
-            <div class="progress-fill" style="width:${progress}%; background:var(--${isReceivable ? 'success' : 'primary'}); border-radius:3px"></div>
+          <div class="progress-bar" style="height:6px; border-radius:3px; background:var(--border)">
+            <div class="progress-fill" style="width:${progress}%; background:var(--text); border-radius:3px"></div>
           </div>
         </div>
 
         <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-secondary); padding-top:16px; border-top:1px dashed var(--border-subtle)">
           <div style="display:flex; gap:16px">
             <div>Juros: <strong style="color:var(--text)">${debt.interestRate}% a.m.</strong></div>
-            <div>Parcelas: <strong style="color:var(--text)">${debt.paidInstallments || 0} / ${debt.installments || '?'}</strong></div>
+            <div>Parcelas: <strong style="color:var(--text)">${computedPaid} / ${computedTotal}</strong></div>
           </div>
           ${debt.monthsToPayoff ? `<div>Quitação: <strong style="color:var(--text)">~${debt.monthsToPayoff} meses</strong></div>` : ''}
         </div>
@@ -263,7 +276,7 @@ const DebtsPage = {
         </div>
         <div class="form-group">
           <label class="form-label">Dia do Vencimento (1 a 31) - Opcional</label>
-          <input type="number" class="form-control" id="db-duedate" value="${debt?.dueDate || ''}" min="1" max="31" placeholder="Ex: 5, 10, 20">
+          <input type="number" class="form-control" id="db-duedate" value="${debt?.dueDay || ''}" min="1" max="31" placeholder="Ex: 5, 10, 20">
         </div>
         
         <div class="form-actions">
@@ -306,7 +319,7 @@ const DebtsPage = {
         interestRate: parseFloat(document.getElementById('db-interest').value || 0),
         installments: parseInt(document.getElementById('db-installments').value || 0),
         paidInstallments: parseInt(document.getElementById('db-paid').value || 0),
-        dueDate: parseInt(document.getElementById('db-duedate').value) || null,
+        dueDay: parseInt(document.getElementById('db-duedate').value) || null,
       };
 
       if (debt) DB.updateDebt(debt.id, data);

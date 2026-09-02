@@ -118,11 +118,11 @@ const WalletsPage = {
       <div class="stats-grid" style="grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px">
         <div class="stat-card" style="padding:14px">
           <div class="stat-label">Entradas (Mês)</div>
-          <div class="stat-value" style="font-size:16px; color:var(--success)">${Utils.formatBRL(monthIncome)}</div>
+          <div class="stat-value" style="font-size:16px; color:var(--text)">↗ ${Utils.formatBRL(monthIncome)}</div>
         </div>
         <div class="stat-card" style="padding:14px">
           <div class="stat-label">Saídas (Mês)</div>
-          <div class="stat-value" style="font-size:16px; color:var(--danger)">${Utils.formatBRL(monthExpense)}</div>
+          <div class="stat-value" style="font-size:16px; color:var(--text)">↘ ${Utils.formatBRL(monthExpense)}</div>
         </div>
       </div>
 

@@ -9,14 +9,14 @@ const CreditPage = {
     const lines   = DB.getCreditLines();
 
     // Semáforo de saúde do crédito
-    let healthStatus = 'Verde (Saudável)';
-    let healthColor  = 'var(--success)';
+    let healthStatus = 'Saudável';
+    let healthColor  = 'var(--text)';
     if (summary.utilization > 70) {
-      healthStatus = 'Vermelho (Alerta)';
-      healthColor  = 'var(--danger)';
+      healthStatus = 'Alerta';
+      healthColor  = 'var(--text)';
     } else if (summary.utilization > 30) {
-      healthStatus = 'Amarelo (Atenção)';
-      healthColor  = 'var(--warning-text)';
+      healthStatus = 'Atenção';
+      healthColor  = 'var(--text-secondary)';
     }
 
     container.innerHTML = `
@@ -37,12 +37,12 @@ const CreditPage = {
         </div>
         <div class="stat-card">
           <div class="stat-label">Utilizado</div>
-          <div class="stat-value" style="color:var(--danger)">${Utils.formatBRL(summary.totalUsed)}</div>
+          <div class="stat-value" style="color:var(--text)">↘ ${Utils.formatBRL(summary.totalUsed)}</div>
           <div class="stat-sub">Faturas e gastos pendentes</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Disponível</div>
-          <div class="stat-value" style="color:var(--success)">${Utils.formatBRL(summary.totalAvailable)}</div>
+          <div class="stat-value" style="color:var(--text)">↗ ${Utils.formatBRL(summary.totalAvailable)}</div>
           <div class="stat-sub">Pronto para uso</div>
         </div>
         <div class="stat-card">
@@ -88,7 +88,7 @@ const CreditPage = {
             : bankLines.map(l => {
                 const available = l.limit - l.used;
                 const pct = l.limit > 0 ? (l.used / l.limit) * 100 : 0;
-                const barColor = pct > 80 ? 'var(--danger)' : pct > 50 ? 'var(--warning-text)' : 'var(--success)';
+                const barColor = 'var(--text)';
                 return `
                   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle)">
                     <div style="display:flex;justify-content:space-between;margin-bottom:6px">
@@ -99,9 +99,9 @@ const CreditPage = {
                     </div>
                     <div style="display:flex;justify-content:space-between;font-size:12px">
                       <span style="color:var(--text-secondary)">Usado: <strong style="color:var(--text)">${Utils.formatBRL(l.used)}</strong></span>
-                      <span style="color:var(--text-secondary)">Disponível: <strong style="color:var(--success)">${Utils.formatBRL(available)}</strong></span>
+                      <span style="color:var(--text-secondary)">Disponível: <strong style="color:var(--text)">${Utils.formatBRL(available)}</strong></span>
                     </div>
-                    <div class="progress-bar">
+                    <div class="progress-bar" style="background:var(--border)">
                       <div class="progress-fill" style="width:${Math.min(100, pct)}%;background:${barColor}"></div>
                     </div>
                     <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;text-align:right">Limite total: ${Utils.formatBRL(l.limit)} | Juros: ${l.interestRate}% a.m.</div>

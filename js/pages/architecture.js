@@ -28,62 +28,74 @@ const ArchitecturePage = {
     html += `<div class="arch-container">`;
     
     html += `
-      <div class="arch-node revenue">
-        <div class="arch-node-title">Faturamento</div>
-        <div class="arch-node-value">100%</div>
+      <div class="arch-node-revenue">
+        <div class="title">Faturamento</div>
+        <div class="value">100%</div>
       </div>
-      <!-- Linha vertical do nó raiz para os filhos - mais visível -->
-      <div style="width:3px;height:28px;background:var(--text-tertiary);margin:0 auto;opacity:0.5;border-radius:2px"></div>
     `;
 
     if (distributions.length > 0) {
-      html += `<div class="arch-branch-container">`;
-      distributions.forEach(d => {
+      html += `<div class="arch-wallets-list">`;
+      distributions.forEach((d, idx) => {
         const w = wallets.find(x => x.id === d.walletId);
         if (!w) return;
         const summary = DB.getWalletSummary(w.id);
         const wBoxes = boxes.filter(b => b.walletId === w.id);
 
         html += `
-          <div class="arch-column">
-            <div class="arch-tag">${d.percentage}%</div>
-            <div class="arch-node wallet" style="border-top-color: ${w.color || 'var(--primary)'}">
-              <div class="arch-node-title">${Utils.escapeHtml(w.name)}</div>
-              <div class="arch-node-value">${Utils.formatBRL(summary.total)}</div>
-              <div style="font-size:11.5px;color:var(--text-tertiary);margin-top:4px">Livre: <strong style="color:var(--text)">${Utils.formatBRL(summary.free)}</strong></div>
-              <div style="margin-top:12px;display:flex;gap:4px;justify-content:center">
+          <div class="arch-wallet-wrapper">
+            <div class="arch-tree-line" style="${idx === 0 ? 'height: 32px' : 'height: 40px; margin-top: -24px;'}"></div>
+            
+            <div class="arch-wallet-connector">
+              <div class="pct-badge">${d.percentage}%</div>
+            </div>
+
+            <div class="arch-wallet-card" style="border-top: 4px solid ${w.color || 'var(--primary)'}">
+              <div class="arch-wallet-header">
+                <div class="arch-wallet-title">${Utils.escapeHtml(w.name)}</div>
+                <div class="arch-wallet-balance">${Utils.formatBRL(summary.total)}</div>
+                <div class="arch-wallet-free">Livre: ${Utils.formatBRL(summary.free)}</div>
+              </div>
+              
+              <div class="arch-wallet-actions">
                 <button class="btn btn-ghost btn-sm" onclick="ArchitecturePage.openNewBoxForm('${w.id}')" title="Nova Caixinha">+ Caixinha</button>
                 <button class="btn btn-primary btn-sm" onclick="ArchitecturePage.openFechamentoForm('${w.id}')" title="Distribuir saldo livre">Alocar Capital</button>
               </div>
-            </div>
-            ${wBoxes.length > 0 ? `
-              <!-- Linha vertical conectando carteira às caixinhas -->
-              <div style="width:3px;height:20px;background:var(--text-tertiary);margin:0 auto;opacity:0.45;border-radius:2px"></div>
-              <div class="arch-boxes">
-                ${wBoxes.map(b => {
-                  const bal = DB.getBoxBalance(b.id);
-                  const walletTotal = summary.total;
-                  const pctOfWallet = walletTotal > 0 ? ((bal / walletTotal) * 100).toFixed(1) : '0.0';
-                  return `
-                  <div class="box-card" style="position:relative">
-                    <div style="position:absolute;top:8px;right:42px;font-size:10px;font-weight:600;color:${w.color||'var(--primary)'};background:${w.color||'var(--primary)'}18;padding:2px 6px;border-radius:10px">${b.percentage > 0 ? b.percentage+'%' : pctOfWallet+'%'}</div>
-                    <div class="box-info" style="padding-right:8px">
-                      <span class="box-name">${Utils.escapeHtml(b.name)}</span>
-                      <span class="box-balance">${Utils.formatBRL(bal)}</span>
+
+              ${wBoxes.length > 0 ? `
+                <div class="arch-boxes-list">
+                  <div class="arch-boxes-title">Caixinhas</div>
+                  ${wBoxes.map(b => {
+                    const bal = DB.getBoxBalance(b.id);
+                    const walletTotal = summary.total;
+                    const pctOfWallet = walletTotal > 0 ? ((bal / walletTotal) * 100).toFixed(1) : '0.0';
+                    const displayPct = b.percentage > 0 ? b.percentage+'%' : pctOfWallet+'%';
+                    return `
+                    <div class="arch-box-card">
+                      <div class="arch-box-info">
+                        <div class="arch-box-name">${Utils.escapeHtml(b.name)}</div>
+                        <div class="arch-box-balance">${Utils.formatBRL(bal)}</div>
+                      </div>
+                      
+                      <div class="arch-box-right">
+                        <div class="arch-box-pct" style="color: ${w.color||'var(--primary)'}; background: ${w.color||'var(--primary)'}18">
+                          ${displayPct}
+                        </div>
+                        <button class="btn-icon" onclick="ArchitecturePage.openResgateForm('${b.id}')" style="background:var(--surface)">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        </button>
+                      </div>
                     </div>
-                    <button class="btn-icon" onclick="ArchitecturePage.openResgateForm('${b.id}')" title="Gerenciar Caixinha">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    </button>
-                  </div>
-                `}).join('')}
-              </div>
-            ` : ''}
+                    `}).join('')}
+                </div>
+              ` : ''}
+            </div>
           </div>
         `;
       });
       html += `</div>`;
     } else {
-      html += `<p style="color:var(--text-tertiary);margin-top:20px;font-size:13px;">Configure a distribuição do <a href="#/billing" style="color:var(--primary)">Faturamento</a> para visualizar a árvore completa.</p>`;
+      html += `<p style="color:var(--text-tertiary);margin-top:20px;font-size:13px;text-align:center">Configure a distribuição do <a href="#/billing" style="color:var(--primary)">Faturamento</a> para visualizar a árvore completa.</p>`;
     }
 
     html += `</div>`;

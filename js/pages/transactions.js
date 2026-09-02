@@ -72,10 +72,10 @@ const TransactionsPage = {
       return;
     }
     const iconMap = {
-      add_transaction: { icon: '↑', color: 'var(--success)', label: 'Adicionado' },
-      delete_transaction: { icon: '✕', color: 'var(--danger)', label: 'Excluído' },
-      add_billing: { icon: '◈', color: 'var(--primary)', label: 'Faturamento' },
-      delete_billing: { icon: '✕', color: 'var(--danger)', label: 'Fat. excluído' },
+      add_transaction: { icon: '↑', color: 'var(--text)', label: 'Adicionado' },
+      delete_transaction: { icon: '✕', color: 'var(--text-secondary)', label: 'Excluído' },
+      add_billing: { icon: '◈', color: 'var(--text)', label: 'Faturamento' },
+      delete_billing: { icon: '✕', color: 'var(--text-secondary)', label: 'Fat. excluído' },
       box_transaction: { icon: '📦', color: '#8e44ad', label: 'Caixinha' },
     };
     area.innerHTML = logs.map(entry => {
@@ -148,7 +148,7 @@ const TransactionsPage = {
       const w   = wallets.find(x => x.id === t.walletId);
       const tw  = wallets.find(x => x.id === t.toWalletId);
       const cat = categories.find(x => x.id === t.categoryId);
-      const sign = t.type === 'income' ? '+' : t.type === 'expense' ? '−' : '⇄';
+      const sign = t.type === 'income' ? '↗' : t.type === 'expense' ? '↘' : '⇄';
       const cls  = `amount-${t.type}`;
       const wDisplay = t.type === 'transfer'
         ? `<span class="color-dot" style="background:${w?.color||'#ccc'}"></span> ${Utils.escapeHtml(w?.name||'?')} → <span class="color-dot" style="background:${tw?.color||'#ccc'}"></span> ${Utils.escapeHtml(tw?.name||'?')}`

@@ -87,6 +87,16 @@
           </svg>
           <span>Categorias</span>
         </a>
+        <a href="#/forecast" class="nav-item" data-page="forecast">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span>Previsão de Custo</span>
+        </a>
       </nav>
 
       <div class="sidebar-footer">
@@ -103,7 +113,14 @@
     <div class="main-wrapper">
       <header class="top-bar">
         <span id="page-title" class="page-title">Dashboard</span>
-        <span class="current-date" id="current-date"></span>
+        <div style="display:flex; align-items:center; gap:16px;">
+          <button class="btn-icon" onclick="App.toggleTheme()" title="Alternar Modo Escuro" style="color:var(--text-secondary)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
+          <span class="current-date" id="current-date"></span>
+        </div>
       </header>
       <main id="content" class="content"></main>
     </div>
@@ -202,6 +219,10 @@
         <span class="fab-menu-icon" style="color:var(--text-secondary)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 10h10M4 14h7M4 18h5"/></svg></span>
         Categorias
       </a>
+      <a href="#/forecast" class="fab-menu-item">
+        <span class="fab-menu-icon" style="color:var(--info)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></span>
+        Previsão de Custo
+      </a>
     </div>
   </div>
 
@@ -224,6 +245,7 @@
   <script src="js/pages/architecture.js?v=10"></script>
   <script src="js/pages/categories.js?v=10"></script>
   <script src="js/pages/investments.js?v=10"></script>
+  <script src="js/pages/forecast.js?v=10"></script>
   <script src="js/app.js?v=10"></script>
 </body>
 </html>

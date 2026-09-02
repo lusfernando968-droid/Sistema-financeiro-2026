@@ -49,8 +49,8 @@ const InvestmentsPage = {
           <div class="wallet-balance" style="color:var(--text); margin-top:8px; font-size:20px">${Utils.formatBRL(balance)}</div>
           
           <div class="wallet-actions" style="margin-top:20px; border-top:1px solid var(--border-subtle); padding-top:12px; display:flex; flex-wrap:wrap; gap:8px">
-            <button class="btn btn-ghost btn-sm" style="color:var(--success); border:1px solid var(--border-subtle)" onclick="InvestmentsPage.openYieldForm('${box.id}', true)">+ Lucro</button>
-            <button class="btn btn-ghost btn-sm" style="color:var(--danger); border:1px solid var(--border-subtle)" onclick="InvestmentsPage.openYieldForm('${box.id}', false)">- Prejuízo</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--text); border:1px solid var(--border-subtle)" onclick="InvestmentsPage.openYieldForm('${box.id}', true)">↗ Lucro</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--text); border:1px solid var(--border-subtle)" onclick="InvestmentsPage.openYieldForm('${box.id}', false)">↘ Prejuízo</button>
             <div style="width:100%"></div>
             <button class="btn btn-ghost btn-sm" onclick="InvestmentsPage.openAporteForm('${box.id}')">Aportar</button>
             <button class="btn btn-ghost btn-sm" onclick="InvestmentsPage.openResgateForm('${box.id}')">Resgatar</button>

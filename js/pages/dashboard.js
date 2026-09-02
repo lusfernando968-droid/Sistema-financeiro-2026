@@ -55,7 +55,7 @@ const DashboardPage = {
           </div>
           <div style="flex:1">
             <div style="font-size:11px; color:rgba(255,255,255,0.6)">Total Dívidas</div>
-            <div style="font-size:14px; font-weight:500; color:#ff8a80">${Utils.formatBRL(debts.totalRemaining)}</div>
+            <div style="font-size:14px; font-weight:500; color:rgba(255,255,255,0.9)">${Utils.formatBRL(debts.totalRemaining)} ↘</div>
           </div>
         </div>
       </div>
@@ -64,19 +64,19 @@ const DashboardPage = {
       <div class="stats-grid" style="grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px">
         <div class="stat-card" style="padding:14px">
           <div class="stat-label">Entradas (Mês)</div>
-          <div class="stat-value" style="font-size:16px; color:var(--success)">${Utils.formatBRL(monthIncome)}</div>
+          <div class="stat-value" style="font-size:16px; color:var(--text)">↗ ${Utils.formatBRL(monthIncome)}</div>
         </div>
         <div class="stat-card" style="padding:14px">
           <div class="stat-label">Saídas (Mês)</div>
-          <div class="stat-value" style="font-size:16px; color:var(--danger)">${Utils.formatBRL(monthExpense)}</div>
+          <div class="stat-value" style="font-size:16px; color:var(--text)">↘ ${Utils.formatBRL(monthExpense)}</div>
         </div>
         
         <div class="stat-card" style="padding:14px; grid-column:span 2; display:flex; align-items:center; gap:14px" onclick="window.location.hash='#/credit'">
           <div style="flex:1">
             <div class="stat-label" style="margin-bottom:2px">Uso de Crédito</div>
             <div style="font-size:12px; color:var(--text-secondary)">${Utils.formatBRL(credit.totalUsed)} de ${Utils.formatBRL(credit.totalLimit)}</div>
-            <div class="progress-bar" style="height:4px; margin-top:8px">
-              <div class="progress-fill" style="width:${Math.min(100, credit.utilization)}%; background:${credit.utilization > 70 ? 'var(--danger)' : credit.utilization > 30 ? 'var(--warning-text)' : 'var(--success)'}"></div>
+            <div class="progress-bar" style="height:4px; margin-top:8px; background:var(--border)">
+              <div class="progress-fill" style="width:${Math.min(100, credit.utilization)}%; background:var(--text)"></div>
             </div>
           </div>
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" style="width:16px;height:16px"><polyline points="9 18 15 12 9 6"/></svg>
@@ -120,11 +120,11 @@ const DashboardPage = {
               </div>
               <div style="background:var(--bg); padding:8px 6px; border-radius:8px">
                 <div style="font-size:10px; color:var(--text-tertiary)">Aportes (Mês)</div>
-                <div style="font-size:13px; font-weight:600; color:var(--success); margin-top:2px">+${Utils.formatBRL(monthIn)}</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:2px">↗ ${Utils.formatBRL(monthIn)}</div>
               </div>
               <div style="background:var(--bg); padding:8px 6px; border-radius:8px">
                 <div style="font-size:10px; color:var(--text-tertiary)">Saídas (Mês)</div>
-                <div style="font-size:13px; font-weight:600; color:var(--danger); margin-top:2px">-${Utils.formatBRL(monthOut)}</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:2px">↘ ${Utils.formatBRL(monthOut)}</div>
               </div>
             </div>
 
@@ -132,7 +132,6 @@ const DashboardPage = {
               ${boxes.map(b => {
                 const wallet = wallets.find(w => w.id === b.walletId);
                 const walletName = wallet ? wallet.name : '';
-                const walletColor = wallet?.color || 'var(--primary)';
                 const pct = Number(b.percentage) || 0;
                 const bal = DB.getBoxBalance(b.id);
                 const bIn = monthBoxTxs.filter(bt => bt.boxId === b.id && bt.type === 'in').reduce((s, bt) => s + Number(bt.amount), 0);
@@ -140,20 +139,19 @@ const DashboardPage = {
                              monthBoxExpenses.filter(t => t.boxId === b.id).reduce((s, t) => s + Number(t.amount), 0);
 
                 return `
-                  <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:var(--bg); border-radius:8px; font-size:12px">
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:var(--bg); border-radius:8px; font-size:12px; border-left: 2px solid var(--border);">
                     <div style="display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden">
-                      <div style="width:3px; height:24px; background:${walletColor}; border-radius:2px; flex-shrink:0"></div>
                       <div style="min-width:0">
                         <div style="display:flex; align-items:center; gap:6px">
                           <span style="font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${Utils.escapeHtml(b.name)}</span>
-                          ${pct > 0 ? `<span style="font-size:10px; font-weight:600; color:${walletColor}; background:${walletColor}15; padding:1px 5px; border-radius:4px; flex-shrink:0">${pct}%</span>` : ''}
+                          ${pct > 0 ? `<span style="font-size:10px; font-weight:500; color:var(--text-secondary); background:var(--border-subtle); padding:1px 5px; border-radius:4px; flex-shrink:0">${pct}%</span>` : ''}
                         </div>
                         <div style="font-size:10.5px; color:var(--text-tertiary)">${Utils.escapeHtml(walletName)}</div>
                       </div>
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:8px">
-                      ${bIn > 0 ? `<span style="font-size:10.5px; color:var(--success)">+${Utils.formatBRL(bIn)}</span>` : ''}
-                      ${bOut > 0 ? `<span style="font-size:10.5px; color:var(--danger)">-${Utils.formatBRL(bOut)}</span>` : ''}
+                      ${bIn > 0 ? `<span style="font-size:10.5px; color:var(--text-secondary)">↗ ${Utils.formatBRL(bIn)}</span>` : ''}
+                      ${bOut > 0 ? `<span style="font-size:10.5px; color:var(--text-secondary)">↘ ${Utils.formatBRL(bOut)}</span>` : ''}
                       <span style="font-weight:600; font-size:12.5px; color:var(--text)">${Utils.formatBRL(bal)}</span>
                     </div>
                   </div>
@@ -305,6 +303,31 @@ const DashboardPage = {
     doc.text(`Total de Saídas: ${Utils.formatBRL(expense)}`, 14, 46);
     doc.text(`Resultado Líquido: ${Utils.formatBRL(net)}`, 14, 52);
 
+    // Divisão do Faturamento (Entradas agrupadas por carteira)
+    let faturamentoY = 58;
+    const faturamentoTxs = txs.filter(t => t.type === 'income');
+    if (faturamentoTxs.length > 0) {
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Divisão das Entradas (Por Carteira):', 14, faturamentoY);
+      faturamentoY += 5;
+      
+      const distMap = {};
+      faturamentoTxs.forEach(t => {
+        const wId = t.walletId;
+        distMap[wId] = (distMap[wId] || 0) + t.amount;
+      });
+      
+      Object.keys(distMap).forEach(wId => {
+        const w = DB.getWallets().find(x => x.id === wId);
+        const wName = w ? w.name : 'Outros';
+        doc.text(`• ${wName}: ${Utils.formatBRL(distMap[wId])}`, 18, faturamentoY);
+        faturamentoY += 5;
+      });
+    }
+    
+    let baseMentorY = faturamentoY + 6; // Ajusta a posição Y do mentor baseado no tamanho da lista
+
     // Mentor Feedback Logic
     const realPct = income > 0 ? Math.round((expense / income) * 100) : (expense > 0 ? 100 : 0);
     let mentorTitle = 'Análise do Mês (Mentor Financeiro)';
@@ -335,19 +358,19 @@ const DashboardPage = {
 
     doc.setFontSize(14);
     doc.setTextColor(34, 36, 40);
-    doc.text(mentorTitle, 14, 64);
+    doc.text(mentorTitle, 14, baseMentorY);
     
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(mentorImpact, 14, 72);
+    doc.text(mentorImpact, 14, baseMentorY + 8);
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(80, 80, 80);
     const splitMsg = doc.splitTextToSize(mentorMessage, 180);
-    doc.text(splitMsg, 14, 78);
-    let yPos = 78 + (splitMsg.length * 5) + 6;
+    doc.text(splitMsg, 14, baseMentorY + 14);
+    let yPos = baseMentorY + 14 + (splitMsg.length * 5) + 6;
 
     if (topCatAmt > 0) {
       doc.text(`• Sua maior área de gasto foi com "${topCatName}", totalizando ${Utils.formatBRL(topCatAmt)}.`, 14, yPos); yPos += 6;

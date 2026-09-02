@@ -2,8 +2,22 @@
    app.js — Inicialização, roteador, modal e toast
    ============================================================ */
 const App = {
+  toggleTheme() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (isDark) {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('theme', 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('theme', 'dark');
+    }
+  },
 
   async init() {
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+
     const loader = document.getElementById('app-loading');
     
     // Configura eventos base IMEDIATAMENTE para a UI não ficar morta
@@ -75,6 +89,7 @@ const App = {
       architecture: 'Arquitetura',
       investments:  'Investimentos',
       categories:   'Categorias',
+      forecast:     'Previsão de Custo',
     };
     const titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[page] || page;
@@ -100,6 +115,7 @@ const App = {
         case 'architecture': ArchitecturePage.render(content);      break;
         case 'investments':  InvestmentsPage.render(content);       break;
         case 'categories':   CategoriesPage.render(content);        break;
+        case 'forecast':     ForecastPage.render(content);          break;
         default:             DashboardPage.render(content);
       }
     } catch (err) {
