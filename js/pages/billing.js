@@ -3,19 +3,31 @@
    ============================================================ */
 const BillingPage = {
 
+  _currentMonth: null,
+
   render(container) {
+    if (!this._currentMonth) this._currentMonth = Utils.currentMonthKey();
+
     const wallets       = DB.getWallets();
     const distributions = DB.getDistributions();
-    const billings      = DB.getBillings().sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    
+    // Filtro por mês
+    let billings = DB.getBillings().sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    if (this._currentMonth) {
+      billings = billings.filter(b => b.date && b.date.startsWith(this._currentMonth));
+    }
+    
     const totalPct      = distributions.reduce((s, d) => s + (d.percentage || 0), 0);
+    const allBoxes      = DB.getBoxes();
+    const allBoxTxs     = DB.getBoxTransactions();
 
     container.innerHTML = `
       <div class="page-header">
         <div>
           <div class="page-header-title">Faturamento</div>
-          <div class="page-header-sub">Registre faturamentos e configure a distribuição automática entre carteiras</div>
+          <div class="page-header-sub">Registre faturamentos e configure a distribuição automática</div>
         </div>
-        <button class="btn btn-primary" id="btn-new-billing">+ Registrar Faturamento</button>
+        <button class="btn btn-primary" id="btn-new-billing">+ Faturamento</button>
       </div>
 
       <div class="billing-layout">
@@ -53,16 +65,20 @@ const BillingPage = {
 
         <!-- Histórico de faturamentos -->
         <div class="card">
-          <div class="card-header">
+          <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px">
             <span class="card-title">Histórico de Faturamentos</span>
+            <div style="background:var(--bg); border-radius:12px; padding:2px 8px; display:inline-flex; align-items:center;">
+              <input type="month" id="billing-month-filter" 
+                style="border:none; background:transparent; font-size:11.5px; color:var(--text-secondary); font-weight:600; outline:none; padding:4px 0; margin:0; cursor:pointer; font-family:inherit;" 
+                value="${this._currentMonth}">
+            </div>
           </div>
           <div class="card-body">
             ${billings.length === 0
               ? `<div class="empty-state" style="padding:28px 0">
-                   <div class="empty-state-text">Nenhum faturamento registrado</div>
-                   <div class="empty-state-sub">Use o botão acima para registrar seu primeiro faturamento</div>
+                   <div class="empty-state-text">Nenhum faturamento em ${this._currentMonth.split('-').reverse().join('/')}</div>
                  </div>`
-              : billings.map(b => this._billingItem(b, wallets)).join('')
+              : billings.map(b => this._billingItem(b, wallets, allBoxes, allBoxTxs)).join('')
             }
           </div>
         </div>
@@ -71,24 +87,60 @@ const BillingPage = {
 
     document.getElementById('btn-new-billing')?.addEventListener('click', () => this.openBillingForm());
     document.getElementById('btn-edit-dist')?.addEventListener('click',   () => this.openDistConfig());
+    
+    const filterInput = document.getElementById('billing-month-filter');
+    if (filterInput) {
+      filterInput.addEventListener('change', (e) => {
+        this._currentMonth = e.target.value;
+        this.render(document.getElementById('content'));
+      });
+    }
   },
 
-  _billingItem(b, wallets) {
+  _billingItem(b, wallets, allBoxes, allBoxTxs) {
     const dists = (b.distributions || []);
+    
+    // Historicamente, a distribuição pras caixinhas é vinculada pelo billingId.
+    // Mas, se for um registro antigo que não tinha billingId, podemos tentar reconstruir visualmente
+    // multiplicando o valor da carteira pela % da caixinha (Fallback opcional, mas seguro pegar os BoxTxs reais)
+    let bTxs = allBoxTxs.filter(tx => tx.billingId === b.id);
+    
+    // [Fallback p/ dados antigos]: Se bTxs estiver vazio, e houver distribuições nas carteiras, 
+    // calculamos o esperado para exibição (mesmo se o dado real antigo não estivesse lincado).
+    if (bTxs.length === 0 && dists.length > 0) {
+      dists.forEach(d => {
+        const wBoxes = allBoxes.filter(box => box.walletId === d.walletId && Number(box.percentage) > 0);
+        wBoxes.forEach(box => {
+          bTxs.push({ boxId: box.id, amount: parseFloat((d.amount * Number(box.percentage) / 100).toFixed(2)) });
+        });
+      });
+    }
+
     return `
       <div class="billing-item">
         <div style="flex:1;min-width:0">
           <div class="billing-amount">${Utils.formatBRL(b.amount)}</div>
           <div class="billing-meta">${Utils.escapeHtml(b.description || 'Faturamento')} · ${Utils.formatDate(b.date)}</div>
-          <div class="billing-dist-list">
+          
+          <div class="billing-dist-list" style="margin-top:6px">
             ${dists.map(d => {
               const w = wallets.find(x => x.id === d.walletId);
               return `<span class="billing-dist-tag">${Utils.escapeHtml(w?.name || '?')}: ${Utils.formatBRL(d.amount)}</span>`;
             }).join('')}
           </div>
+          
+          ${bTxs.length > 0 ? `
+          <div class="billing-dist-list" style="margin-top:4px">
+            ${bTxs.map(tx => {
+               const box = allBoxes.find(x => x.id === tx.boxId);
+               return `<span class="billing-dist-tag" style="background:var(--bg); color:var(--text-secondary); border: 1px solid var(--border-subtle); padding:2px 6px">↳ 📦 ${Utils.escapeHtml(box?.name || '?')}: ${Utils.formatBRL(tx.amount)}</span>`;
+            }).join('')}
+          </div>
+          ` : ''}
+
         </div>
         <button class="btn-icon" title="Excluir faturamento" onclick="BillingPage.confirmDelete('${b.id}')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
             <path d="M10 11v6M14 11v6M9 6V4h6v2"/>

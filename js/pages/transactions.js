@@ -221,7 +221,15 @@ const TransactionsPage = {
   openForm(id = null) {
     const wallets    = DB.getWallets();
     const categories = DB.getCategories();
-    const tx         = id ? DB.getTransactions().find(t => t.id === id) : null;
+    
+    let tx = null;
+    let prefillType = 'expense'; // Default to expense
+    if (id && ['income', 'expense', 'transfer'].includes(id)) {
+      prefillType = id;
+      id = null;
+    } else if (id) {
+      tx = DB.getTransactions().find(t => t.id === id);
+    }
 
     if (wallets.length === 0) {
       App.toast('Crie pelo menos uma carteira antes de lançar transações.', 'error');
@@ -235,15 +243,17 @@ const TransactionsPage = {
 
     const incCats = categories.filter(c => c.type === 'income');
     const expCats = categories.filter(c => c.type === 'expense');
+    
+    const initialType = tx ? tx.type : prefillType;
 
     App.openModal(tx ? 'Editar Transação' : 'Nova Transação', `
       <form id="tx-form">
         <div class="form-group">
           <label class="form-label">Tipo *</label>
           <select class="form-control" id="tx-type" required>
-            <option value="income"   ${tx?.type === 'income'   ? 'selected' : ''}>Entrada</option>
-            <option value="expense"  ${tx?.type === 'expense'  ? 'selected' : ''}>Saída</option>
-            <option value="transfer" ${tx?.type === 'transfer' ? 'selected' : ''}>Transferência (Aporte)</option>
+            <option value="income"   ${initialType === 'income'   ? 'selected' : ''}>Entrada</option>
+            <option value="expense"  ${initialType === 'expense'  ? 'selected' : ''}>Saída</option>
+            <option value="transfer" ${initialType === 'transfer' ? 'selected' : ''}>Transferência (Aporte)</option>
           </select>
         </div>
         <div class="form-row">

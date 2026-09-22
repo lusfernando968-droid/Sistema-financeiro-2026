@@ -44,6 +44,21 @@ const DashboardPage = {
         </button>
       </div>
 
+      <!-- Ações Rápidas (Home Input) -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+        
+        <button onclick="TransactionsPage.openForm('expense')" style="background:var(--bg); border:1px solid var(--border-subtle); padding:14px 10px; border-radius:12px; cursor:pointer; text-align:center; transition:0.2s; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <div style="font-size:26px; font-weight:300; color:var(--text); margin-bottom:2px; line-height:1">−</div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-secondary)">Despesa</div>
+        </button>
+
+        <button onclick="BillingPage.openBillingForm()" style="background:var(--bg); border:1px solid var(--border-subtle); padding:14px 10px; border-radius:12px; cursor:pointer; text-align:center; transition:0.2s; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <div style="font-size:26px; font-weight:300; color:var(--text); margin-bottom:2px; line-height:1">+</div>
+          <div style="font-size:12px; font-weight:600; color:var(--text-secondary)">Faturar</div>
+        </button>
+
+      </div>
+
       <!-- Patrimônio Principal -->
       <div class="card" style="margin-bottom:14px; background:#222428; color:white; padding:20px; border:none; box-shadow:0 8px 24px rgba(0,0,0,0.15)">
         <div style="font-size:12px; color:rgba(255,255,255,0.7); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px">Patrimônio Líquido</div>
@@ -197,13 +212,99 @@ const DashboardPage = {
         `
       }
 
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-header">
-          <span class="card-title">Últimas Transações</span>
-          <a href="#/transactions" class="btn btn-ghost btn-sm" style="font-size:11px">Ver tudo</a>
+      ${(() => {
+        // Obter nomes exatos das categorias do usuário
+        const allCats = DB.getCategories();
+        const getId = (nameMatch, type) => {
+          const c = allCats.find(c => c.type === type && c.name.toLowerCase().includes(nameMatch.toLowerCase()));
+          return c ? c.id : null;
+        };
+
+        const idTransporte = getId('transporte', 'expense');
+        const idAlimentacao = getId('alimentaç', 'expense') || getId('alimentac', 'expense');
+        const idPessoas = getId('pessoa', 'expense') || getId('funcionári', 'expense');
+
+        const now = new Date();
+        const currentMonthKey = Utils.currentMonthKey();
+        
+        // Mês Passado
+        const lastMonthDate = new Date();
+        lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+        const lastMonthKey = lastMonthDate.toISOString().substring(0, 7);
+
+        // Função auxiliar para soma de categoria num mês
+        const sumCat = (catId, monthKey) => {
+          if (!catId) return 0;
+          return transactions.filter(t => t.type === 'expense' && t.categoryId === catId && t.date?.startsWith(monthKey))
+                             .reduce((s, t) => s + t.amount, 0);
+        };
+
+        // 1. Transporte (Mês Passado)
+        const transpLastMonth = sumCat(idTransporte, lastMonthKey);
+
+        // 2. Média Alimentação (Últimos 3 meses - excluindo o atual que está rodando)
+        let sumAlim = 0;
+        let sumPes = 0;
+        for (let i = 1; i <= 3; i++) {
+          const d = new Date();
+          d.setMonth(d.getMonth() - i);
+          const mk = d.toISOString().substring(0, 7);
+          sumAlim += sumCat(idAlimentacao, mk);
+          sumPes += sumCat(idPessoas, mk);
+        }
+        const avgAlimentacao = sumAlim / 3;
+        const avgPessoas = sumPes / 3;
+
+        // 4. Caixinha de destaque (maior saldo)
+        const boxes = DB.getBoxes();
+        let topBox = null;
+        let topBoxBal = 0;
+        boxes.forEach(b => {
+          const bal = DB.getBoxBalance(b.id);
+          if (bal >= topBoxBal) { topBoxBal = bal; topBox = b; }
+        });
+
+        return `
+        <div class="card" style="margin-bottom:20px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border:1px solid var(--border-subtle)">
+          <div class="card-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom:12px">
+            <span class="card-title" style="font-size:13px; color:var(--text-secondary)">Indicadores Pessoais</span>
+          </div>
+          <div class="card-body" style="padding:16px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              
+              <!-- Transporte Mês Passado -->
+              <div style="background:var(--bg); padding:12px; border-radius:8px;">
+                <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600; margin-bottom:4px">Transporte (Mês Anterior)</div>
+                <div style="font-size:16px; font-weight:600; color:var(--text)">${Utils.formatBRL(transpLastMonth)}</div>
+                <div style="font-size:10.5px; color:var(--text-tertiary); margin-top:2px">Fechamento total</div>
+              </div>
+
+              <!-- Média Alimentação -->
+              <div style="background:var(--bg); padding:12px; border-radius:8px;">
+                <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600; margin-bottom:4px">Alimentação (Média)</div>
+                <div style="font-size:16px; font-weight:600; color:var(--text)">${Utils.formatBRL(avgAlimentacao)}</div>
+                <div style="font-size:10.5px; color:var(--text-tertiary); margin-top:2px">Média últimos 3 meses</div>
+              </div>
+
+              <!-- Média Funcionários/Pessoas -->
+              <div style="background:var(--bg); padding:12px; border-radius:8px;">
+                <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600; margin-bottom:4px">Pessoas/Equipe (Média)</div>
+                <div style="font-size:16px; font-weight:600; color:var(--text)">${Utils.formatBRL(avgPessoas)}</div>
+                <div style="font-size:10.5px; color:var(--text-tertiary); margin-top:2px">Média últimos 3 meses</div>
+              </div>
+
+              <!-- Caixinha Principal -->
+              <div style="background:var(--bg); padding:12px; border-radius:8px;">
+                <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600; margin-bottom:4px">Caixinha: ${topBox ? Utils.escapeHtml(topBox.name) : 'Nenhuma'}</div>
+                <div style="font-size:16px; font-weight:600; color:var(--text)">${Utils.formatBRL(topBoxBal)}</div>
+                <div style="font-size:10.5px; color:var(--text-tertiary); margin-top:2px">Saldo acumulado</div>
+              </div>
+
+            </div>
+          </div>
         </div>
-        <div class="table-wrapper">${this._recentTable(transactions, wallets)}</div>
-      </div>
+        `;
+      })()}
     `;
 
     if (wallets.length > 0) {
@@ -523,33 +624,6 @@ const DashboardPage = {
 
     doc.save(`Relatorio_Luiz_${monthKey}.pdf`);
     App.toast('Relatório gerado com sucesso!', 'success');
-  },
-
-  _recentTable(transactions, wallets) {
-    const recent = [...transactions].sort((a, b) => (b.date||'').localeCompare(a.date||'') || (b.createdAt||'').localeCompare(a.createdAt||'')).slice(0, 5);
-    if (recent.length === 0) return `<div class="empty-state" style="padding:24px"><div class="empty-state-text">Nenhuma transação ainda</div></div>`;
-
-    const rows = recent.map(t => {
-      const w  = wallets.find(x => x.id === t.walletId);
-      const sign  = t.type === 'income' ? '+' : t.type === 'expense' ? '−' : '⇄';
-      const cls   = `amount-${t.type}`;
-      return `<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid var(--border-subtle)">
-        <div style="display:flex; align-items:center; gap:10px; overflow:hidden">
-          <div style="width:36px;height:36px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--text-tertiary)">
-            ${t.type === 'income' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>' 
-            : t.type === 'expense' ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>' 
-            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 21l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg>'}
-          </div>
-          <div style="min-width:0">
-            <div style="font-weight:500; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${Utils.escapeHtml(t.description || 'Transação')}</div>
-            <div style="font-size:11px; color:var(--text-tertiary)">${Utils.formatDate(t.date)} · ${Utils.escapeHtml(w?.name || '—')}</div>
-          </div>
-        </div>
-        <div class="${cls}" style="font-weight:600; font-size:13.5px; flex-shrink:0; margin-left:8px">${sign} ${Utils.formatBRL(t.amount)}</div>
-      </div>`;
-    }).join('');
-
-    return `<div>${rows}</div>`;
   },
 
   _getPeriods(time) {
