@@ -7,18 +7,30 @@
 const DashboardPage = {
   _chartState: { metric: 'saldo', time: 'month' },
   _chartInstance: null,
+  _pieChartInstance: null,
+  _selectedMonth: null,
 
   render(container) {
     if (this._chartInstance) {
       this._chartInstance.destroy();
       this._chartInstance = null;
     }
+    if (this._pieChartInstance) {
+      this._pieChartInstance.destroy();
+      this._pieChartInstance = null;
+    }
 
     const wallets = DB.getWallets();
     const transactions = DB.getTransactions();
     const credit = DB.getCreditSummary();
     const debts = DB.getDebtSummary();
-    const monthKey = Utils.currentMonthKey();
+    if (!this._selectedMonth) {
+      this._selectedMonth = Utils.currentMonthKey();
+    }
+    const monthKey = this._selectedMonth;
+    const mNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const mParts = monthKey.split('-');
+    const monthText = `${mNames[parseInt(mParts[1])-1]} de ${mParts[0]}`;
 
     const totalBalance = wallets.reduce((s, w) => s + DB.getWalletBalance(w.id), 0);
     const monthTxs = transactions.filter(t => t.date?.startsWith(monthKey));
@@ -34,29 +46,8 @@ const DashboardPage = {
       <div class="page-header" style="margin-bottom:14px">
         <div>
           <div class="page-header-title" style="font-size:22px;letter-spacing:-0.5px">Olá, Luiz!</div>
-          <div class="page-header-sub">Veja o resumo das suas finanças</div>
+          <div class="page-header-sub">Resumo das suas finanças</div>
         </div>
-        <button class="btn btn-primary btn-sm" id="btn-report" title="Gerar Relatório Inteligente">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          Relatório
-        </button>
-      </div>
-
-      <!-- Ações Rápidas (Home Input) -->
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
-        
-        <button onclick="TransactionsPage.openForm('expense')" style="background:var(--bg); border:1px solid var(--border-subtle); padding:14px 10px; border-radius:12px; cursor:pointer; text-align:center; transition:0.2s; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-          <div style="font-size:26px; font-weight:300; color:var(--text); margin-bottom:2px; line-height:1">−</div>
-          <div style="font-size:12px; font-weight:600; color:var(--text-secondary)">Despesa</div>
-        </button>
-
-        <button onclick="BillingPage.openBillingForm()" style="background:var(--bg); border:1px solid var(--border-subtle); padding:14px 10px; border-radius:12px; cursor:pointer; text-align:center; transition:0.2s; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-          <div style="font-size:26px; font-weight:300; color:var(--text); margin-bottom:2px; line-height:1">+</div>
-          <div style="font-size:12px; font-weight:600; color:var(--text-secondary)">Faturar</div>
-        </button>
-
       </div>
 
       <!-- Patrimônio Principal -->
@@ -95,6 +86,32 @@ const DashboardPage = {
             </div>
           </div>
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" style="width:16px;height:16px"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </div>
+
+      <!-- Gráfico de Pizza: Despesas por Categoria -->
+      <div class="card" style="margin-bottom:14px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border:1px solid var(--border-subtle)">
+        <div class="card-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom:12px; display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div class="card-title" style="font-size:13px; color:var(--text-secondary)">Despesas por Categoria</div>
+            <div style="font-size:11px; font-weight:500; color:var(--text-tertiary); margin-top:3px">${monthText}</div>
+          </div>
+          <div style="position:relative; width:22px; height:22px; color:var(--text-secondary); cursor:pointer;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <input type="month" id="dashboard-month-picker" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;" value="${monthKey}">
+          </div>
+        </div>
+        <div class="card-body" style="padding:16px; text-align:center;">
+          <div style="position:relative; width:100%; min-height:200px; max-height:250px; display:flex; justify-content:center;">
+            <canvas id="expenses-pie-chart"></canvas>
+          </div>
+          <details class="details-animated" style="margin-top:16px;">
+            <summary class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; list-style:none; color:var(--text-secondary); margin:0 auto;">
+              Ver Dados
+              <svg class="details-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </summary>
+            <div id="pie-chart-legend" style="margin-top:16px; text-align:left; display:grid; grid-template-columns: 1fr; gap:10px;"></div>
+          </details>
         </div>
       </div>
 
@@ -309,6 +326,7 @@ const DashboardPage = {
 
     if (wallets.length > 0) {
       this._renderUnifiedChart(transactions);
+      this._renderExpensesPieChart(monthTxs);
 
       document.querySelectorAll('.chart-metric-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -325,7 +343,16 @@ const DashboardPage = {
       });
     }
     
-    document.getElementById('btn-report')?.addEventListener('click', () => this.openReportModal());
+    const monthPicker = document.getElementById('dashboard-month-picker');
+    if (monthPicker) {
+      monthPicker.addEventListener('change', (e) => {
+        this._selectedMonth = e.target.value;
+        this.render(document.getElementById('content'));
+      });
+    }
+
+    const gbr = document.getElementById('global-btn-report');
+    if (gbr) gbr.onclick = () => this.openReportModal();
   },
 
   openReportModal() {
@@ -766,6 +793,105 @@ const DashboardPage = {
         },
         animation: { duration: 400, easing: 'easeOutQuart' }
       },
+    });
+  },
+
+  _renderExpensesPieChart(monthTxs) {
+    const ctx = document.getElementById('expenses-pie-chart');
+    if (!ctx || typeof Chart === 'undefined') return;
+
+    const expenses = monthTxs.filter(t => t.type === 'expense');
+    if (expenses.length === 0) {
+      this._pieChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Sem Despesas'],
+          datasets: [{
+            data: [1],
+            backgroundColor: [getComputedStyle(document.documentElement).getPropertyValue('--border-subtle').trim() || '#eee'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: () => ' Nenhuma despesa no período'
+              }
+            }
+          },
+          animation: { duration: 600, easing: 'easeOutQuart' }
+        }
+      });
+      
+      const legendContainer = document.getElementById('pie-chart-legend');
+      if (legendContainer) {
+        legendContainer.innerHTML = '<div style="text-align:center; color:var(--text-tertiary); font-size:13px; padding: 12px 0;">Nenhuma despesa registrada neste mês.</div>';
+      }
+      return;
+    }
+
+    const categoryTotals = {};
+    const categories = DB.getCategories();
+    
+    expenses.forEach(tx => {
+      const cat = categories.find(c => c.id === tx.categoryId);
+      const catName = cat ? cat.name : 'Outros';
+      categoryTotals[catName] = (categoryTotals[catName] || 0) + Number(tx.amount);
+    });
+
+    // Sort by largest expense
+    const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
+    const labels = sorted.map(i => i[0]);
+    const data = sorted.map(i => i[1]);
+
+    const bgColors = [
+      '#111111', '#333333', '#555555', '#777777', 
+      '#999999', '#aaaaaa', '#cccccc', '#eeeeee'
+    ];
+
+    const legendContainer = document.getElementById('pie-chart-legend');
+    if (legendContainer) {
+      legendContainer.innerHTML = sorted.map((item, index) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; border-bottom:1px solid var(--border-subtle); padding-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:12px; height:12px; border-radius:50%; background:${bgColors[index % bgColors.length]}"></div>
+            <span style="color:var(--text-secondary)">${Utils.escapeHtml(item[0])}</span>
+          </div>
+          <span style="font-weight:600; color:var(--text)">${Utils.formatBRL(item[1])}</span>
+        </div>
+      `).join('');
+    }
+
+    this._pieChartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          backgroundColor: bgColors.slice(0, labels.length),
+          borderWidth: 2,
+          borderColor: getComputedStyle(document.documentElement).getPropertyValue('--card-bg').trim() || '#fff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (c) => ` ${c.label}: ${Utils.formatBRL(c.raw)}`
+            }
+          }
+        },
+        animation: { duration: 600, easing: 'easeOutQuart' }
+      }
     });
   }
 };

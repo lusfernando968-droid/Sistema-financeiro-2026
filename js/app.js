@@ -94,6 +94,12 @@ const App = {
     const titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.textContent = titles[page] || page;
 
+    // Mostra o botão de relatório global apenas no dashboard
+    const reportBtn = document.getElementById('global-btn-report');
+    if (reportBtn) {
+      reportBtn.style.display = (page === 'dashboard') ? 'inline-flex' : 'none';
+    }
+
     // Renderiza página
     const content = document.getElementById('content');
     if (!content) return;
@@ -101,6 +107,7 @@ const App = {
     // Fecha menu FAB se estiver aberto ao navegar
     const fabOverlay = document.getElementById('fab-overlay');
     if (fabOverlay) fabOverlay.style.display = 'none';
+    document.body.classList.remove('sidebar-mobile-open');
 
     // Limpa o conteúdo antes de renderizar para garantir que não fique conteúdo antigo
     // em caso de erro no render da nova página

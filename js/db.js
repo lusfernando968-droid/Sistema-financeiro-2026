@@ -601,7 +601,10 @@ const DB = {
       });
     }
 
-    const newRemaining     = Math.max(0, (Number(debt.remainingAmount) || 0) - payment);
+    let newRemaining     = Math.max(0, (Number(debt.remainingAmount) || 0) - payment);
+    if (newRemaining < 0.10) {
+      newRemaining = 0;
+    }
     const newPaid          = (Number(debt.paidInstallments) || 0) + 1;
     const isFullyPaid      = newRemaining <= 0;
     
@@ -614,7 +617,7 @@ const DB = {
   },
 
   getDebtSummary(direction = 'payable') {
-    const debts = this.getDebts().filter(d => d.status !== 'paid' && 
+    const debts = this.getDebts().filter(d => d.status !== 'paid' && (Number(d.remainingAmount) || 0) >= 0.10 && 
       (direction === 'receivable' ? (d.type && d.type.startsWith('receivable_')) : (!d.type || !d.type.startsWith('receivable_')))
     );
     const totalRemaining = debts.reduce((s, d) => s + (Number(d.remainingAmount) || 0), 0);
@@ -625,9 +628,16 @@ const DB = {
     return { totalRemaining, totalMonthly, avgInterest, count: debts.length };
   },
 
+  getPaidDebts(direction = 'payable') {
+    return this.getDebts().filter(d => 
+      (d.status === 'paid' || (Number(d.remainingAmount) || 0) < 0.10) &&
+      (direction === 'receivable' ? (d.type && d.type.startsWith('receivable_')) : (!d.type || !d.type.startsWith('receivable_')))
+    );
+  },
+
   getDebtAllocation(strategy = 'avalanche', direction = 'payable') {
     const debts = this.getDebts()
-      .filter(d => d.status !== 'paid' && (Number(d.remainingAmount) || 0) > 0 &&
+      .filter(d => d.status !== 'paid' && (Number(d.remainingAmount) || 0) >= 0.10 &&
         (direction === 'receivable' ? (d.type && d.type.startsWith('receivable_')) : (!d.type || !d.type.startsWith('receivable_')))
       );
 
