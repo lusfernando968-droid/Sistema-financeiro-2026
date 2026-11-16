@@ -8,7 +8,9 @@ const DashboardPage = {
   _chartState: { metric: 'saldo', time: 'month' },
   _chartInstance: null,
   _pieChartInstance: null,
+  _annualBillingChartInstance: null,
   _selectedMonth: null,
+  _selectedBillingYear: null,
 
   render(container) {
     if (this._chartInstance) {
@@ -19,6 +21,10 @@ const DashboardPage = {
       this._pieChartInstance.destroy();
       this._pieChartInstance = null;
     }
+    if (this._annualBillingChartInstance) {
+      this._annualBillingChartInstance.destroy();
+      this._annualBillingChartInstance = null;
+    }
 
     const wallets = DB.getWallets();
     const transactions = DB.getTransactions();
@@ -27,6 +33,10 @@ const DashboardPage = {
     if (!this._selectedMonth) {
       this._selectedMonth = Utils.currentMonthKey();
     }
+    if (!this._selectedBillingYear) {
+      this._selectedBillingYear = new Date().getFullYear();
+    }
+    const annualBilling = this._getAnnualBillingData(this._selectedBillingYear, transactions);
     const monthKey = this._selectedMonth;
     const mNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const mParts = monthKey.split('-');
@@ -229,6 +239,75 @@ const DashboardPage = {
         `
       }
 
+      <!-- Card Dedicado: Faturamento Anual -->
+      <div class="card" style="margin-bottom:14px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border:1px solid var(--border-subtle)">
+        <div class="card-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div class="card-title" style="font-size:13px; color:var(--text-secondary)">Faturamento Anual</div>
+            <div style="font-size:11px; font-weight:500; color:var(--text-tertiary); margin-top:2px">Evolução mensal e média do período</div>
+          </div>
+          <div style="display:inline-flex; align-items:center; background:var(--bg); border-radius:8px; padding:2px; border:1px solid var(--border-subtle);">
+            <button type="button" id="btn-billing-prev-year" title="Ano anterior" style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--text-secondary); cursor:pointer; border-radius:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <span style="font-size:12px; font-weight:600; color:var(--text); padding:0 8px; min-width:44px; text-align:center;">${this._selectedBillingYear}</span>
+            <button type="button" id="btn-billing-next-year" title="Próximo ano" style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--text-secondary); cursor:pointer; border-radius:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body" style="padding:16px;">
+          <!-- Resumo Anual (Total, Média Mensal e Melhor Mês) -->
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px; text-align:center;">
+            <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
+              <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Total no Ano</div>
+              <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">${Utils.formatBRL(annualBilling.totalAnnual)}</div>
+            </div>
+            <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
+              <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Média Mensal</div>
+              <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">${Utils.formatBRL(annualBilling.avgMonthly)}</div>
+            </div>
+            <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
+              <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Melhor Mês</div>
+              <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">${annualBilling.bestMonth ? `${annualBilling.bestMonth.label} · ${Utils.formatBRL(annualBilling.bestMonth.amount)}` : '—'}</div>
+            </div>
+          </div>
+
+          <div class="chart-canvas-wrapper short" style="height:220px; position:relative;">
+            <canvas id="annual-billing-chart"></canvas>
+          </div>
+
+          <details class="details-animated" style="margin-top:14px; text-align:center;">
+            <summary class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; list-style:none; color:var(--text-secondary); margin:0 auto;">
+              Ver Meses
+              <svg class="details-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </summary>
+            <div id="annual-billing-legend" style="margin-top:14px; text-align:left; display:grid; grid-template-columns:1fr; gap:8px;">
+              ${annualBilling.totalAnnual === 0
+                ? `<div style="text-align:center; color:var(--text-tertiary); font-size:13px; padding:10px 0;">Nenhum faturamento registrado em ${this._selectedBillingYear}.</div>`
+                : annualBilling.monthlyData.filter(m => m.amount > 0).map(m => {
+                    const pct = annualBilling.totalAnnual > 0 ? ((m.amount / annualBilling.totalAnnual) * 100).toFixed(1) : '0.0';
+                    const isBest = annualBilling.bestMonth && annualBilling.bestMonth.monthIndex === m.monthIndex;
+                    return `
+                      <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; border-bottom:1px solid var(--border-subtle); padding-bottom:8px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          <div style="width:10px; height:10px; border-radius:50%; background:${isBest ? 'var(--text)' : 'var(--text-tertiary)'}"></div>
+                          <span style="color:var(--text-secondary); font-weight:${isBest ? '600' : '400'}">${m.fullName}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          <span style="font-size:11px; color:var(--text-tertiary)">${pct}%</span>
+                          <span style="font-weight:600; color:var(--text)">${Utils.formatBRL(m.amount)}</span>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')
+              }
+            </div>
+          </details>
+        </div>
+      </div>
+
       ${(() => {
         // Obter nomes exatos das categorias do usuário
         const allCats = DB.getCategories();
@@ -342,6 +421,18 @@ const DashboardPage = {
         });
       });
     }
+
+    this._renderAnnualBillingChart(annualBilling);
+
+    document.getElementById('btn-billing-prev-year')?.addEventListener('click', () => {
+      this._selectedBillingYear -= 1;
+      this.render(document.getElementById('content'));
+    });
+
+    document.getElementById('btn-billing-next-year')?.addEventListener('click', () => {
+      this._selectedBillingYear += 1;
+      this.render(document.getElementById('content'));
+    });
     
     const monthPicker = document.getElementById('dashboard-month-picker');
     if (monthPicker) {
@@ -891,6 +982,146 @@ const DashboardPage = {
           }
         },
         animation: { duration: 600, easing: 'easeOutQuart' }
+      }
+    });
+  },
+
+  _getAnnualBillingData(year, transactions) {
+    const billings = DB.getBillings();
+    const shortMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const fullMonths = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+    const monthlyData = shortMonths.map((label, idx) => {
+      const mm = String(idx + 1).padStart(2, '0');
+      const mk = `${year}-${mm}`;
+
+      const monthBillings = billings.filter(b => b.date && b.date.startsWith(mk));
+      const billingIds = new Set(monthBillings.map(b => b.id));
+      const billingSum = monthBillings.reduce((s, b) => s + Number(b.amount || 0), 0);
+
+      const extraIncome = transactions
+        .filter(t => t.type === 'income' && (!t.billingId || !billingIds.has(t.billingId)) && t.date && t.date.startsWith(mk))
+        .reduce((s, t) => s + Number(t.amount || 0), 0);
+
+      return {
+        monthIndex: idx,
+        monthKey: mk,
+        label,
+        fullName: fullMonths[idx],
+        amount: billingSum + extraIncome
+      };
+    });
+
+    const totalAnnual = monthlyData.reduce((s, m) => s + m.amount, 0);
+    const activeMonths = monthlyData.filter(m => m.amount > 0).length;
+    const avgMonthly = activeMonths > 0 ? (totalAnnual / activeMonths) : 0;
+
+    let bestMonth = null;
+    monthlyData.forEach(m => {
+      if (m.amount > 0 && (!bestMonth || m.amount > bestMonth.amount)) {
+        bestMonth = m;
+      }
+    });
+
+    return { monthlyData, totalAnnual, activeMonths, avgMonthly, bestMonth };
+  },
+
+  _renderAnnualBillingChart(annualBilling) {
+    const ctx = document.getElementById('annual-billing-chart');
+    if (!ctx || typeof Chart === 'undefined') return;
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const primaryBarColor = isDark ? '#eaeaeb' : '#111111';
+    const regularBarColor = isDark ? '#52525b' : '#8e8e93';
+    const hoverBarColor   = isDark ? '#ffffff' : '#000000';
+    const avgLineColor    = isDark ? '#a1a1aa' : '#555555';
+    const gridColor       = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+
+    const labels = annualBilling.monthlyData.map(m => m.label);
+    const values = annualBilling.monthlyData.map(m => m.amount);
+    const bestIdx = annualBilling.bestMonth ? annualBilling.bestMonth.monthIndex : -1;
+
+    const barColors = annualBilling.monthlyData.map((m, idx) =>
+      idx === bestIdx ? primaryBarColor : regularBarColor
+    );
+
+    const datasets = [
+      {
+        type: 'bar',
+        label: 'Faturamento',
+        data: values,
+        backgroundColor: barColors,
+        hoverBackgroundColor: hoverBarColor,
+        borderRadius: 6,
+        borderSkipped: false,
+        maxBarThickness: 24,
+        order: 2
+      }
+    ];
+
+    if (annualBilling.avgMonthly > 0) {
+      datasets.push({
+        type: 'line',
+        label: 'Média Mensal',
+        data: Array(12).fill(annualBilling.avgMonthly),
+        borderColor: avgLineColor,
+        borderWidth: 1.5,
+        borderDash: [4, 4],
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        fill: false,
+        order: 1
+      });
+    }
+
+    this._annualBillingChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (c) => ` ${c.dataset.label}: ${Utils.formatBRL(c.raw)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { family: 'Inter', size: 10 },
+              color: '#999',
+              maxRotation: 0
+            }
+          },
+          y: {
+            display: true,
+            position: 'left',
+            beginAtZero: true,
+            grid: { color: gridColor, drawBorder: false },
+            ticks: {
+              font: { family: 'Inter', size: 10 },
+              color: '#999',
+              callback: function(value) {
+                if (Math.abs(value) >= 1000) {
+                  return (value / 1000).toFixed(value % 1000 === 0 ? 0 : 1).replace('.0', '') + 'k';
+                }
+                return value;
+              }
+            }
+          }
+        },
+        animation: { duration: 500, easing: 'easeOutQuart' }
       }
     });
   }
