@@ -588,13 +588,14 @@ const DB = {
     const payment = Number(debt.monthlyPayment) || 0;
     
     const isReceivable = debt.type && debt.type.startsWith('receivable_');
+    const paymentDate = date || Utils.today();
 
     if (walletId && walletId !== 'none') {
       this.addTransaction({
         type:        isReceivable ? 'income' : 'expense',
         amount:      payment,
         walletId,
-        date:        date || Utils.today(),
+        date:        paymentDate,
         description: `Parcela: ${debt.name}`,
         categoryId:  isReceivable ? 'c_outros_inc' : 'c_outros_exp',
         debtId,
@@ -613,7 +614,77 @@ const DB = {
       paidInstallments:  newPaid,
       status:            isFullyPaid ? 'paid' : 'active',
     });
+
+    // Marca automaticamente o mês da parcela como pago (mesmo em baixa manual)
+    this.setDebtMonthPaid(debtId, paymentDate.substring(0, 7), true);
+
     return payment;
+  },
+
+  _getLocalPaidMonthsMap() {
+    try {
+      const raw = localStorage.getItem('financas_debt_paid_months');
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  },
+
+  setDebtMonthPaid(debtId, monthKey, isPaid = true) {
+    const mk = monthKey || Utils.currentMonthKey();
+    const map = this._getLocalPaidMonthsMap();
+    if (!map[debtId]) map[debtId] = {};
+    map[debtId][mk] = Boolean(isPaid);
+    try {
+      localStorage.setItem('financas_debt_paid_months', JSON.stringify(map));
+    } catch (e) {
+      console.warn('Erro ao salvar status mensal da dívida:', e);
+    }
+
+    const debt = this.getDebts().find(d => d.id === debtId);
+    this._log(
+      'debt_month_status',
+      'debt',
+      debtId,
+      `${isPaid ? 'Parcela marcada como paga' : 'Parcela marcada como pendente'} (${mk}): ${debt?.name || debtId}`,
+      debt?.monthlyPayment || null,
+      null,
+      { monthKey: mk, paid: Boolean(isPaid) }
+    );
+    this._saveCache();
+  },
+
+  isDebtPaidInMonth(debtId, monthKey) {
+    const mk = monthKey || Utils.currentMonthKey();
+
+    // 1. Verifica registro explícito no log de atividades sincronizado com Supabase
+    if (Array.isArray(this.state.activity_log)) {
+      const logEntry = this.state.activity_log.find(e =>
+        e &&
+        e.action === 'debt_month_status' &&
+        (e.entityId === debtId || e.entity_id === debtId) &&
+        e.metadata &&
+        (e.metadata.monthKey === mk || e.metadata.month_key === mk)
+      );
+      if (logEntry && typeof logEntry.metadata.paid === 'boolean') {
+        return logEntry.metadata.paid;
+      }
+    }
+
+    // 2. Verifica cache local de meses marcados manualmente
+    const map = this._getLocalPaidMonthsMap();
+    if (map[debtId] && typeof map[debtId][mk] === 'boolean') {
+      return map[debtId][mk];
+    }
+
+    // 3. Verifica se há transação de pagamento vinculada à dívida no mês
+    const debt = this.getDebts().find(d => d.id === debtId);
+    const txs = this.getTransactions();
+    return txs.some(t =>
+      t.date &&
+      t.date.startsWith(mk) &&
+      (t.debtId === debtId || (debt && t.description === `Parcela: ${debt.name}`))
+    );
   },
 
   getDebtSummary(direction = 'payable') {

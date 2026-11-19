@@ -252,13 +252,12 @@ const App = {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthNamesShort = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const currentMonthLabel = monthNamesShort[now.getMonth()];
 
-    const txs = (typeof DB !== 'undefined' && DB.getTransactions) ? DB.getTransactions() : [];
-    const paidThisMonth = txs.some(t =>
-      t.date &&
-      t.date.startsWith(currentMonthKey) &&
-      (t.debtId === debt.id || (t.description && t.description === `Parcela: ${debt.name}`))
-    );
+    const paidThisMonth = (typeof DB !== 'undefined' && DB.isDebtPaidInMonth)
+      ? DB.isDebtPaidInMonth(debt.id, currentMonthKey)
+      : false;
 
     const dueDay = Number(debt.dueDay) || 0;
     if (dueDay < 1 || dueDay > 31) {
@@ -266,13 +265,17 @@ const App = {
         debt,
         isReceivable,
         paidThisMonth,
+        currentMonthKey,
+        currentMonthLabel,
         dueDay: null,
         daysDiff: null,
-        status: 'no_due_day',
-        isUrgent: !paidThisMonth,
-        badgeText: 'Sem dia de vencimento',
-        headline: 'Seu vencimento está próximo?',
-        message: `${debt.name} (${Utils.formatBRL(debt.monthlyPayment)}/mês) está ativa. Defina o dia de vencimento para receber o aviso exato.`
+        status: paidThisMonth ? 'paid_month' : 'no_due_day',
+        isUrgent: false,
+        badgeText: paidThisMonth ? `Paga em ${currentMonthLabel}` : 'Sem dia de vencimento',
+        headline: paidThisMonth ? `Parcela de ${currentMonthLabel} paga` : 'Definir dia de vencimento',
+        message: paidThisMonth
+          ? `A parcela de "${debt.name}" referente a ${currentMonthLabel} já consta como paga.`
+          : `${debt.name} (${Utils.formatBRL(debt.monthlyPayment)}/mês) está ativa. Defina o dia de vencimento para receber o aviso.`
       };
     }
 
@@ -284,66 +287,87 @@ const App = {
     const dueNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, Math.min(dueDay, maxDaysNextMonth));
     const diffNextMonth = Math.round((dueNextMonth - today) / 86400000);
 
-    if (!paidThisMonth) {
-      if (diffThisMonth === 0) {
-        return {
-          debt,
-          isReceivable,
-          paidThisMonth,
-          dueDay,
-          daysDiff: 0,
-          status: 'today',
-          isUrgent: true,
-          badgeText: `Vence hoje (Dia ${dueDay})`,
-          headline: 'Seu vencimento é hoje!',
-          message: `A parcela de "${debt.name}" (${Utils.formatBRL(debt.monthlyPayment)}) vence hoje, dia ${dueDay}.`
-        };
-      }
-      if (diffThisMonth > 0 && diffThisMonth <= 7) {
-        return {
-          debt,
-          isReceivable,
-          paidThisMonth,
-          dueDay,
-          daysDiff: diffThisMonth,
-          status: 'upcoming',
-          isUrgent: true,
-          badgeText: `Vence em ${diffThisMonth} ${diffThisMonth === 1 ? 'dia' : 'dias'} (Dia ${dueDay})`,
-          headline: 'Seu vencimento está próximo!',
-          message: `A parcela de "${debt.name}" (${Utils.formatBRL(debt.monthlyPayment)}) vence em ${diffThisMonth} ${diffThisMonth === 1 ? 'dia' : 'dias'} (dia ${dueDay}).`
-        };
-      }
-      if (diffThisMonth < 0) {
-        const daysAgo = Math.abs(diffThisMonth);
-        return {
-          debt,
-          isReceivable,
-          paidThisMonth,
-          dueDay,
-          daysDiff: diffThisMonth,
-          status: 'overdue',
-          isUrgent: true,
-          badgeText: `Venceu dia ${dueDay} (pendente no mês)`,
-          headline: 'Seu vencimento está próximo / pendente!',
-          message: `A parcela deste mês de "${debt.name}" (${Utils.formatBRL(debt.monthlyPayment)}) tinha vencimento no dia ${dueDay} (${daysAgo} ${daysAgo === 1 ? 'dia' : 'dias'} atrás).`
-        };
-      }
+    // Se o usuário já pagou a parcela deste mês, ela NÃO fica pendente no mês atual
+    if (paidThisMonth) {
+      return {
+        debt,
+        isReceivable,
+        paidThisMonth: true,
+        currentMonthKey,
+        currentMonthLabel,
+        dueDay,
+        daysDiff: diffNextMonth,
+        status: 'paid_month',
+        isUrgent: false,
+        badgeText: `Paga em ${currentMonthLabel} · Próx. dia ${dueDay}`,
+        headline: `Parcela de ${currentMonthLabel} em dia`,
+        message: `A parcela de "${debt.name}" deste mês já foi paga. Próximo vencimento em ${diffNextMonth} dias (dia ${dueDay}).`
+      };
     }
 
-    const effectiveDiff = (!paidThisMonth && diffThisMonth > 0) ? diffThisMonth : diffNextMonth;
-    const isNearNext = effectiveDiff <= 7;
+    if (diffThisMonth === 0) {
+      return {
+        debt,
+        isReceivable,
+        paidThisMonth: false,
+        currentMonthKey,
+        currentMonthLabel,
+        dueDay,
+        daysDiff: 0,
+        status: 'today',
+        isUrgent: true,
+        badgeText: `Vence hoje (Dia ${dueDay})`,
+        headline: 'Seu vencimento é hoje!',
+        message: `A parcela de "${debt.name}" (${Utils.formatBRL(debt.monthlyPayment)}) vence hoje, dia ${dueDay}.`
+      };
+    }
+    if (diffThisMonth > 0 && diffThisMonth <= 7) {
+      return {
+        debt,
+        isReceivable,
+        paidThisMonth: false,
+        currentMonthKey,
+        currentMonthLabel,
+        dueDay,
+        daysDiff: diffThisMonth,
+        status: 'upcoming',
+        isUrgent: true,
+        badgeText: `Vence em ${diffThisMonth} ${diffThisMonth === 1 ? 'dia' : 'dias'} (Dia ${dueDay})`,
+        headline: 'Seu vencimento está próximo!',
+        message: `A parcela de "${debt.name}" (${Utils.formatBRL(debt.monthlyPayment)}) vence em ${diffThisMonth} ${diffThisMonth === 1 ? 'dia' : 'dias'} (dia ${dueDay}).`
+      };
+    }
+    if (diffThisMonth < 0) {
+      const daysAgo = Math.abs(diffThisMonth);
+      return {
+        debt,
+        isReceivable,
+        paidThisMonth: false,
+        currentMonthKey,
+        currentMonthLabel,
+        dueDay,
+        daysDiff: diffThisMonth,
+        status: 'overdue',
+        isUrgent: true,
+        badgeText: `Venceu dia ${dueDay} (pendente em ${currentMonthLabel})`,
+        headline: 'Seu vencimento está próximo / pendente!',
+        message: `A parcela de ${currentMonthLabel} de "${debt.name}" (${Utils.formatBRL(debt.monthlyPayment)}) venceu no dia ${dueDay} (${daysAgo} ${daysAgo === 1 ? 'dia' : 'dias'} atrás).`
+      };
+    }
 
     return {
       debt,
       isReceivable,
-      paidThisMonth,
+      paidThisMonth: false,
+      currentMonthKey,
+      currentMonthLabel,
       dueDay,
-      daysDiff: effectiveDiff,
-      status: isNearNext ? 'upcoming' : 'scheduled',
-      isUrgent: isNearNext,
-      badgeText: `Vence dia ${dueDay} (em ${effectiveDiff} ${effectiveDiff === 1 ? 'dia' : 'dias'})`,
-      headline: isNearNext ? 'Seu vencimento está próximo!' : 'Próximo vencimento',
-      message: `A parcela de "${debt.name}" (${Utils.formatBRL(debt.monthlyPayment)}) vence em ${effectiveDiff} ${effectiveDiff === 1 ? 'dia' : 'dias'} (dia ${dueDay}).`
+      daysDiff: diffThisMonth,
+      status: 'scheduled',
+      isUrgent: false,
+      badgeText: `Vence dia ${dueDay} (em ${diffThisMonth} ${diffThisMonth === 1 ? 'dia' : 'dias'})`,
+      headline: 'Próximo vencimento',
+      message: `A parcela de "${debt.name}" (${Utils.formatBRL(debt.monthlyPayment)}) vence em ${diffThisMonth} ${diffThisMonth === 1 ? 'dia' : 'dias'} (dia ${dueDay}).`
     };
   },
 
@@ -356,7 +380,7 @@ const App = {
     );
 
     const infos = activeDebts.map(d => this.getDebtDueInfo(d)).filter(Boolean);
-    const priorityOrder = { today: 1, upcoming: 2, overdue: 3, scheduled: 4, no_due_day: 5 };
+    const priorityOrder = { today: 1, upcoming: 2, overdue: 3, scheduled: 4, no_due_day: 5, paid_month: 6 };
 
     infos.sort((a, b) => {
       const pa = priorityOrder[a.status] || 99;
@@ -371,21 +395,55 @@ const App = {
   checkDebtDueAlerts(forceShow = false) {
     const allAlerts = this.getDebtDueAlerts();
     const urgentWithDue = allAlerts.filter(a => a.status === 'today' || a.status === 'upcoming' || a.status === 'overdue');
-    const badgeAlerts = urgentWithDue.length > 0 ? urgentWithDue : allAlerts.filter(a => a.isUrgent);
 
     const badgeEl = document.getElementById('debt-alert-badge');
     if (badgeEl) {
-      if (badgeAlerts.length > 0) {
-        badgeEl.textContent = String(badgeAlerts.length);
+      if (urgentWithDue.length > 0) {
+        badgeEl.textContent = String(urgentWithDue.length);
         badgeEl.style.display = 'inline-flex';
       } else {
         badgeEl.style.display = 'none';
       }
     }
 
-    if (forceShow || (!this._debtPopupDismissed && badgeAlerts.length > 0)) {
+    if (forceShow || (!this._debtPopupDismissed && urgentWithDue.length > 0)) {
       this.showDebtDuePopup(forceShow);
+    } else if (urgentWithDue.length === 0) {
+      this.closeDebtDuePopup(false);
     }
+  },
+
+  toggleDebtPaidThisMonth(debtId, isPaid = true, refreshModal = false) {
+    if (typeof DB === 'undefined' || !DB.setDebtMonthPaid) return;
+    const mk = Utils.currentMonthKey();
+    DB.setDebtMonthPaid(debtId, mk, isPaid);
+    this.toast(isPaid ? 'Parcela marcada como já paga neste mês!' : 'Parcela marcada como pendente neste mês.', 'success');
+    this.checkDebtDueAlerts(false);
+
+    const rawPage = (window.location.hash || '').replace(/^#\/?/, '').split('?')[0];
+    if (rawPage === 'debts' && typeof DebtsPage !== 'undefined') {
+      DebtsPage.render(document.getElementById('content'));
+    }
+
+    if (refreshModal) {
+      this.openNotificationsModal();
+    }
+  },
+
+  markAllDebtsPaidThisMonth() {
+    const urgentList = this.getDebtDueAlerts().filter(a => a.status === 'today' || a.status === 'upcoming' || a.status === 'overdue');
+    const mk = Utils.currentMonthKey();
+    urgentList.forEach(item => {
+      DB.setDebtMonthPaid(item.debt.id, mk, true);
+    });
+    this.toast('Todas as parcelas do mês foram marcadas como pagas!', 'success');
+    this.checkDebtDueAlerts(false);
+
+    const rawPage = (window.location.hash || '').replace(/^#\/?/, '').split('?')[0];
+    if (rawPage === 'debts' && typeof DebtsPage !== 'undefined') {
+      DebtsPage.render(document.getElementById('content'));
+    }
+    this.openNotificationsModal();
   },
 
   _whiteClockSvg(size = 18) {
@@ -446,11 +504,14 @@ const App = {
             Próxima (${this._debtPopupIndex + 1}/${list.length}) →
           </button>
         ` : ''}
+        <button type="button" class="debt-due-btn-secondary" onclick="App.toggleDebtPaidThisMonth('${current.debt.id}', true, false)">
+          ✓ Já paguei
+        </button>
         <button type="button" class="debt-due-btn-secondary" onclick="App.openNotificationsModal()">
           Ver Todas (${list.length})
         </button>
         <button type="button" class="debt-due-btn-primary" onclick="App.handleDebtPopupAction('${current.debt.id}', ${hasDueDay})">
-          ${hasDueDay ? 'Dar Baixa' : 'Definir Vencimento'}
+          ${hasDueDay ? 'Dar Baixa' : 'Definir Dia'}
         </button>
       </div>
     `;
@@ -463,7 +524,8 @@ const App = {
     this.closeDebtDuePopup(true);
     const allAlerts = this.getDebtDueAlerts();
     const urgentList = allAlerts.filter(a => a.status === 'today' || a.status === 'upcoming' || a.status === 'overdue');
-    const otherList = allAlerts.filter(a => a.status !== 'today' && a.status !== 'upcoming' && a.status !== 'overdue');
+    const paidThisMonthList = allAlerts.filter(a => a.status === 'paid_month');
+    const otherList = allAlerts.filter(a => a.status !== 'today' && a.status !== 'upcoming' && a.status !== 'overdue' && a.status !== 'paid_month');
 
     const totalPendingMonthly = urgentList.reduce((sum, a) => sum + (Number(a.debt.monthlyPayment) || 0), 0);
     const banks = (typeof DB !== 'undefined' && DB.getBanks) ? DB.getBanks() : [];
@@ -471,12 +533,13 @@ const App = {
     const renderAlertItem = (item, isUrgentItem) => {
       const bank = banks.find(b => b.id === item.debt.bankId);
       const hasDueDay = item.dueDay !== null;
+      const isPaidMonth = item.status === 'paid_month';
       return `
-        <div style="background:var(--bg); border:1px solid var(--border-subtle); border-radius:18px; padding:14px 16px; display:flex; flex-direction:column; gap:10px;">
+        <div style="background:var(--bg); border:1px solid var(--border-subtle); border-radius:18px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; ${isPaidMonth ? 'opacity:0.85;' : ''}">
           <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
             <div style="display:flex; align-items:flex-start; gap:10px; min-width:0;">
               <div style="width:36px; height:36px; border-radius:12px; background:var(--surface); color:var(--text); border:1px solid var(--border-subtle); box-shadow:0 2px 6px rgba(0,0,0,0.03); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                ${this._whiteClockSvg(16)}
+                ${isPaidMonth ? '<span style="font-size:15px; font-weight:700;">✓</span>' : this._whiteClockSvg(16)}
               </div>
               <div style="min-width:0;">
                 <div style="font-size:13.5px; font-weight:600; color:var(--text); line-height:1.3;">${Utils.escapeHtml(item.debt.name)}</div>
@@ -493,16 +556,22 @@ const App = {
 
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:10px; border-top:1px solid var(--border-subtle); flex-wrap:wrap;">
             <span style="display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:500; padding:4px 10px; border-radius:999px; background:var(--surface); color:var(--text-secondary); border:1px solid var(--border);">
-              <span style="width:6px; height:6px; border-radius:50%; background:${isUrgentItem ? 'var(--text)' : 'var(--text-tertiary)'}; flex-shrink:0;"></span>
+              <span style="width:6px; height:6px; border-radius:50%; background:${isPaidMonth ? 'var(--text-tertiary)' : isUrgentItem ? 'var(--text)' : 'var(--text-tertiary)'}; flex-shrink:0;"></span>
               ${Utils.escapeHtml(item.badgeText)}
             </span>
             <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
-              <button type="button" class="btn btn-ghost btn-sm" style="font-size:11.5px; padding:5px 12px; border-radius:999px;" onclick="App.closeModal(); App.handleDebtPopupAction('${item.debt.id}', false)">
-                Editar
-              </button>
-              <button type="button" class="btn btn-primary btn-sm" style="background:var(--text); color:var(--surface); border:none; font-size:11.5px; font-weight:600; padding:5px 14px; border-radius:12px;" onclick="App.closeModal(); App.handleDebtPopupAction('${item.debt.id}', ${hasDueDay})">
-                ${hasDueDay ? 'Dar Baixa' : 'Definir Dia'}
-              </button>
+              ${isPaidMonth ? `
+                <button type="button" class="btn btn-ghost btn-sm" style="font-size:11px; padding:5px 12px; border-radius:999px;" onclick="App.toggleDebtPaidThisMonth('${item.debt.id}', false, true)">
+                  Desmarcar
+                </button>
+              ` : `
+                <button type="button" class="btn btn-ghost btn-sm" title="Marcar parcela deste mês como já paga sem descontar novamente" style="font-size:11px; padding:5px 11px; border-radius:999px;" onclick="App.toggleDebtPaidThisMonth('${item.debt.id}', true, true)">
+                  ✓ Já paguei
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" style="background:var(--text); color:var(--surface); border:none; font-size:11.5px; font-weight:600; padding:5px 13px; border-radius:12px;" onclick="App.closeModal(); App.handleDebtPopupAction('${item.debt.id}', ${hasDueDay})">
+                  ${hasDueDay ? 'Dar Baixa' : 'Definir Dia'}
+                </button>
+              `}
             </div>
           </div>
         </div>
@@ -521,33 +590,53 @@ const App = {
       <div style="display:flex; flex-direction:column; gap:14px; max-height:68vh; overflow-y:auto; padding-right:2px;">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; background:#1f2024; color:#ffffff; padding:16px; border-radius:18px;">
           <div>
-            <div style="font-size:10.5px; font-weight:500; color:rgba(255,255,255,0.65); text-transform:uppercase; letter-spacing:0.4px;">Alertas no Mês</div>
+            <div style="font-size:10.5px; font-weight:500; color:rgba(255,255,255,0.65); text-transform:uppercase; letter-spacing:0.4px;">Pendentes no Mês</div>
             <div style="font-size:17px; font-weight:700; color:#ffffff; margin-top:3px;">${urgentList.length} ${urgentList.length === 1 ? 'vencimento' : 'vencimentos'}</div>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:10.5px; font-weight:500; color:rgba(255,255,255,0.65); text-transform:uppercase; letter-spacing:0.4px;">Total das Parcelas</div>
+            <div style="font-size:10.5px; font-weight:500; color:rgba(255,255,255,0.65); text-transform:uppercase; letter-spacing:0.4px;">Total Pendente</div>
             <div style="font-size:17px; font-weight:700; color:#ffffff; margin-top:3px;">${Utils.formatBRL(totalPendingMonthly)}</div>
           </div>
         </div>
 
         ${urgentList.length > 0 ? `
           <div>
-            <div style="font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:8px;">
-              Vencimentos Próximos ou Pendentes (${urgentList.length})
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px; flex-wrap:wrap;">
+              <div style="font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.4px;">
+                Vencimentos Pendentes (${urgentList.length})
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" style="font-size:11px; padding:3px 10px; min-height:26px; border-radius:999px;" onclick="App.markAllDebtsPaidThisMonth()">
+                ✓ Marcar todas como pagas no mês
+              </button>
             </div>
             <div style="display:flex; flex-direction:column; gap:10px;">
               ${urgentList.map(item => renderAlertItem(item, true)).join('')}
             </div>
           </div>
-        ` : ''}
+        ` : `
+          <div style="background:var(--bg); border:1px solid var(--border-subtle); border-radius:16px; padding:14px; text-align:center; color:var(--text-secondary); font-size:12.5px;">
+            ✓ Todas as parcelas com vencimento neste mês já foram marcadas como pagas!
+          </div>
+        `}
 
         ${otherList.length > 0 ? `
           <div>
             <div style="font-size:11px; font-weight:700; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:8px;">
-              Outros Vencimentos Ativos (${otherList.length})
+              Próximos Vencimentos (${otherList.length})
             </div>
             <div style="display:flex; flex-direction:column; gap:10px;">
               ${otherList.map(item => renderAlertItem(item, false)).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        ${paidThisMonthList.length > 0 ? `
+          <div>
+            <div style="font-size:11px; font-weight:700; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:8px;">
+              ✓ Já Pagas Neste Mês (${paidThisMonthList.length})
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              ${paidThisMonthList.map(item => renderAlertItem(item, false)).join('')}
             </div>
           </div>
         ` : ''}

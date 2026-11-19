@@ -122,13 +122,19 @@ const DebtsPage = {
     return `
       <div class="card" style="margin-bottom:16px; padding:20px; border-radius:22px; border:1px solid rgba(0,0,0,0.03); box-shadow:var(--shadow); position:relative">
         ${dueInfo && !isPaid ? `
-          <div style="margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; background:var(--bg); color:var(--text-secondary); border:1px solid var(--border-subtle); padding:7px 12px; border-radius:12px; font-size:11.5px; font-weight:500;">
+          <div style="margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; background:var(--bg); color:var(--text-secondary); border:1px solid var(--border-subtle); padding:7px 12px; border-radius:12px; font-size:11.5px; font-weight:500;">
             <span style="display:inline-flex; align-items:center; gap:7px; color:var(--text);">
               <span style="width:6px; height:6px; border-radius:50%; background:${isDueUrgent ? 'var(--text)' : 'var(--text-tertiary)'}; flex-shrink:0;"></span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="flex-shrink:0; opacity:0.75;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
               ${Utils.escapeHtml(dueInfo.badgeText)}
             </span>
-            ${dueInfo.dueDay === null ? `<button type="button" onclick="DebtsPage.openDebtForm('${debt.id}')" style="border:none; background:transparent; color:var(--text); text-decoration:underline; font-size:11px; font-weight:600; cursor:pointer;">Definir dia</button>` : ''}
+            <div style="display:flex; align-items:center; gap:10px; margin-left:auto;">
+              ${dueInfo.dueDay === null ? `<button type="button" onclick="DebtsPage.openDebtForm('${debt.id}')" style="border:none; background:transparent; color:var(--text); text-decoration:underline; font-size:11px; font-weight:600; cursor:pointer;">Definir dia</button>` : ''}
+              ${dueInfo.paidThisMonth
+                ? `<button type="button" onclick="App.toggleDebtPaidThisMonth('${debt.id}', false, false)" style="border:none; background:transparent; color:var(--text-tertiary); text-decoration:underline; font-size:11px; font-weight:500; cursor:pointer;">Desmarcar mês</button>`
+                : `<button type="button" onclick="App.toggleDebtPaidThisMonth('${debt.id}', true, false)" style="border:1px solid var(--border); background:var(--surface); color:var(--text); padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; cursor:pointer;">✓ Já paguei este mês</button>`
+              }
+            </div>
           </div>
         ` : ''}
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px">
@@ -312,8 +318,15 @@ const DebtsPage = {
         dueDay: parseInt(document.getElementById('db-duedate').value) || null,
       };
 
-      if (debt) DB.updateDebt(debt.id, data);
-      else DB.addDebt(data);
+      if (debt) {
+        const oldPaid = Number(debt.paidInstallments) || 0;
+        DB.updateDebt(debt.id, data);
+        if (data.paidInstallments > oldPaid && typeof DB.setDebtMonthPaid === 'function') {
+          DB.setDebtMonthPaid(debt.id, Utils.currentMonthKey(), true);
+        }
+      } else {
+        DB.addDebt(data);
+      }
 
       App._debtPopupDismissed = false;
       App.checkDebtDueAlerts(false);
