@@ -11,8 +11,12 @@ const DashboardPage = {
   _annualBillingChartInstance: null,
   _selectedMonth: null,
   _selectedBillingYear: null,
+  _selectedBillingMonth: null,
+  _billingDetailsOpen: false,
+  _annualViewMode: 'billing', // 'billing' | 'expenses' | 'compare'
 
   render(container) {
+    const prevScroll = container ? container.scrollTop : 0;
     if (this._chartInstance) {
       this._chartInstance.destroy();
       this._chartInstance = null;
@@ -37,6 +41,9 @@ const DashboardPage = {
       this._selectedBillingYear = new Date().getFullYear();
     }
     const annualBilling = this._getAnnualBillingData(this._selectedBillingYear, transactions);
+    const annualExpenses = this._getAnnualExpensesData(this._selectedBillingYear, transactions);
+    const annualMode = this._annualViewMode || 'billing';
+    const activeAnnualData = annualMode === 'expenses' ? annualExpenses : annualBilling;
     const monthKey = this._selectedMonth;
     const mNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const mParts = monthKey.split('-');
@@ -53,49 +60,296 @@ const DashboardPage = {
     const isHealthy = netWorth > 0 && credit.utilization < 70;
 
     container.innerHTML = `
-      <div class="page-header" style="margin-bottom:14px">
+      <div class="page-header" style="margin-bottom:16px; display:flex; flex-direction:row; align-items:center; justify-content:space-between;">
         <div>
-          <div class="page-header-title" style="font-size:22px;letter-spacing:-0.5px">Olá, Luiz!</div>
+          <div class="page-header-title" style="font-size:24px; font-weight:700; letter-spacing:-0.6px; color:var(--text)">Olá, Luiz!</div>
           <div class="page-header-sub">Resumo das suas finanças</div>
         </div>
+        <button type="button" class="btn btn-primary btn-sm" style="width:auto; min-height:36px; padding:7px 16px; border-radius:999px; font-size:12.5px; box-shadow:0 4px 12px rgba(31,32,36,0.14);" onclick="TransactionsPage.openForm('expense')">
+          + Registrar
+        </button>
       </div>
 
-      <!-- Patrimônio Principal -->
-      <div class="card" style="margin-bottom:14px; background:#222428; color:white; padding:20px; border:none; box-shadow:0 8px 24px rgba(0,0,0,0.15)">
-        <div style="font-size:12px; color:rgba(255,255,255,0.7); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px">Patrimônio Líquido</div>
-        <div style="font-size:28px; font-weight:600; letter-spacing:-1px">${Utils.formatBRL(netWorth)}</div>
-        <div style="display:flex; gap:12px; margin-top:16px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1)">
-          <div style="flex:1">
-            <div style="font-size:11px; color:rgba(255,255,255,0.6)">Saldo Contas</div>
-            <div style="font-size:14px; font-weight:500">${Utils.formatBRL(totalBalance)}</div>
+      <!-- Patrimônio Principal (Inspirado no Card "Overall Information" — iDraft) -->
+      <div class="card" style="margin-bottom:16px; background:#1f2024; color:#ffffff; padding:22px; border:none; border-radius:24px; box-shadow:0 12px 32px rgba(24,25,30,0.14)">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <span style="font-size:13px; font-weight:500; color:rgba(255,255,255,0.75); letter-spacing:-0.1px;">Visão Geral do Patrimônio</span>
+          <a href="#/wallets" style="color:rgba(255,255,255,0.65); text-decoration:none; font-size:12px; display:inline-flex; align-items:center; gap:4px;">
+            Carteiras →
+          </a>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:18px; margin-bottom:18px; flex-wrap:wrap;">
+          <div style="flex:1.2; min-width:160px;">
+            <div style="font-size:28px; font-weight:700; letter-spacing:-1px; line-height:1.15;">${Utils.formatBRL(netWorth)}</div>
+            <div style="font-size:11px; color:rgba(255,255,255,0.55); margin-top:4px;">Patrimônio líquido acumulado</div>
           </div>
-          <div style="flex:1">
-            <div style="font-size:11px; color:rgba(255,255,255,0.6)">Total Dívidas</div>
-            <div style="font-size:14px; font-weight:500; color:rgba(255,255,255,0.9)">${Utils.formatBRL(debts.totalRemaining)} ↘</div>
+          <div style="width:1px; height:34px; background:rgba(255,255,255,0.12);"></div>
+          <div style="flex:1; min-width:130px; cursor:pointer;" onclick="window.location.hash='#/credit'">
+            <div style="font-size:18px; font-weight:700; letter-spacing:-0.5px; line-height:1.2;">${Utils.formatBRL(credit.totalUsed)}</div>
+            <div style="font-size:11px; color:rgba(255,255,255,0.55); margin-top:3px;">Crédito usado de ${Utils.formatBRL(credit.totalLimit)}</div>
+          </div>
+        </div>
+
+        <!-- Mini-cards Claros Internos (Estilo iDraft: 3 cápsulas claras dentro do card escuro) -->
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+          <div style="background:#e9eaee; color:#1f2024; border-radius:16px; padding:12px 8px; text-align:center;">
+            <div style="width:24px; height:24px; border-radius:50%; border:1.5px solid rgba(31,32,36,0.35); display:inline-flex; align-items:center; justify-content:center; margin-bottom:6px;">
+              <span style="width:6px; height:6px; border-radius:50%; background:#1f2024;"></span>
+            </div>
+            <div style="font-size:12.5px; font-weight:700; letter-spacing:-0.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${Utils.formatBRL(totalBalance)}</div>
+            <div style="font-size:10px; font-weight:500; color:#686b73; margin-top:2px;">Saldo Contas</div>
+          </div>
+
+          <div style="background:#e9eaee; color:#1f2024; border-radius:16px; padding:12px 8px; text-align:center;">
+            <div style="width:24px; height:24px; border-radius:50%; border:1.5px dashed rgba(31,32,36,0.45); display:inline-flex; align-items:center; justify-content:center; margin-bottom:6px; font-size:11px; font-weight:700;">
+              ↗
+            </div>
+            <div style="font-size:12.5px; font-weight:700; letter-spacing:-0.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${Utils.formatBRL(monthIncome)}</div>
+            <div style="font-size:10px; font-weight:500; color:#686b73; margin-top:2px;">Entradas (Mês)</div>
+          </div>
+
+          <div style="background:#e9eaee; color:#1f2024; border-radius:16px; padding:12px 8px; text-align:center; cursor:pointer;" onclick="window.location.hash='#/debts'">
+            <div style="width:24px; height:24px; border-radius:50%; border:1.5px solid rgba(31,32,36,0.35); display:inline-flex; align-items:center; justify-content:center; margin-bottom:6px; font-size:11px; font-weight:700;">
+              ↘
+            </div>
+            <div style="font-size:12.5px; font-weight:700; letter-spacing:-0.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${Utils.formatBRL(debts.totalRemaining)}</div>
+            <div style="font-size:10px; font-weight:500; color:#686b73; margin-top:2px;">Total Dívidas</div>
           </div>
         </div>
       </div>
 
-      <!-- Resumo do Mês & Crédito -->
-      <div class="stats-grid" style="grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px">
-        <div class="stat-card" style="padding:14px">
-          <div class="stat-label">Entradas (Mês)</div>
-          <div class="stat-value" style="font-size:16px; color:var(--text)">↗ ${Utils.formatBRL(monthIncome)}</div>
-        </div>
-        <div class="stat-card" style="padding:14px">
-          <div class="stat-label">Saídas (Mês)</div>
+      <!-- Resumo Rápido de Saídas do Mês & Uso de Crédito -->
+      <div class="stats-grid" style="grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px">
+        <div class="stat-card" style="padding:14px 16px">
+          <div class="stat-label" style="text-transform:none; font-size:11.5px; color:var(--text-secondary)">Saídas (Mês)</div>
           <div class="stat-value" style="font-size:16px; color:var(--text)">↘ ${Utils.formatBRL(monthExpense)}</div>
         </div>
-        
-        <div class="stat-card" style="padding:14px; grid-column:span 2; display:flex; align-items:center; gap:14px" onclick="window.location.hash='#/credit'">
-          <div style="flex:1">
-            <div class="stat-label" style="margin-bottom:2px">Uso de Crédito</div>
-            <div style="font-size:12px; color:var(--text-secondary)">${Utils.formatBRL(credit.totalUsed)} de ${Utils.formatBRL(credit.totalLimit)}</div>
-            <div class="progress-bar" style="height:4px; margin-top:8px; background:var(--border)">
-              <div class="progress-fill" style="width:${Math.min(100, credit.utilization)}%; background:var(--text)"></div>
+        <div class="stat-card" style="padding:14px 16px; cursor:pointer" onclick="window.location.hash='#/credit'">
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <div class="stat-label" style="text-transform:none; font-size:11.5px; color:var(--text-secondary); margin-bottom:2px">Limite Utilizado</div>
+            <span style="font-size:11px; font-weight:600; color:var(--text)">${Math.round(credit.utilization)}%</span>
+          </div>
+          <div class="progress-bar" style="height:5px; margin-top:8px; background:var(--border-subtle); border-radius:999px">
+            <div class="progress-fill" style="width:${Math.min(100, credit.utilization)}%; background:var(--text); border-radius:999px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Dedicado: Faturamento Anual & Despesas Anuais -->
+      <div class="card" style="margin-bottom:14px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border:1px solid var(--border-subtle)">
+        <div class="card-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div class="card-title" style="font-size:13px; color:var(--text-secondary)">
+              ${annualMode === 'expenses' ? 'Despesas Anuais' : annualMode === 'compare' ? 'Faturamento vs. Despesas' : 'Faturamento Anual'}
+            </div>
+            <div style="font-size:11px; font-weight:500; color:var(--text-tertiary); margin-top:2px">
+              ${annualMode === 'expenses' ? 'Evolução mensal e média de gastos do período' : annualMode === 'compare' ? 'Comparativo mensal e saldo líquido no ano' : 'Evolução mensal e média do período'}
             </div>
           </div>
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" style="width:16px;height:16px"><polyline points="9 18 15 12 9 6"/></svg>
+          <div style="display:inline-flex; align-items:center; background:var(--bg); border-radius:8px; padding:2px; border:1px solid var(--border-subtle);">
+            <button type="button" id="btn-billing-prev-year" title="Ano anterior" style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--text-secondary); cursor:pointer; border-radius:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <span style="font-size:12px; font-weight:600; color:var(--text); padding:0 8px; min-width:44px; text-align:center;">${this._selectedBillingYear}</span>
+            <button type="button" id="btn-billing-next-year" title="Próximo ano" style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--text-secondary); cursor:pointer; border-radius:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body" style="padding:16px;">
+          <!-- Seletor de Modo Anual (Segmented Control estilo iOS) -->
+          <div style="display:flex; background:var(--bg); border-radius:8px; padding:4px; gap:2px; margin-bottom:14px;">
+            <button type="button" class="btn btn-ghost btn-sm annual-mode-btn ${annualMode === 'billing' ? 'active' : ''}" data-mode="billing" style="flex:1; font-size:11px; padding:6px 8px; white-space:nowrap; border-radius:6px; ${annualMode === 'billing' ? 'background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,0.06);color:var(--text);font-weight:600;' : 'color:var(--text-tertiary);'}">Faturamento</button>
+            <button type="button" class="btn btn-ghost btn-sm annual-mode-btn ${annualMode === 'expenses' ? 'active' : ''}" data-mode="expenses" style="flex:1; font-size:11px; padding:6px 8px; white-space:nowrap; border-radius:6px; ${annualMode === 'expenses' ? 'background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,0.06);color:var(--text);font-weight:600;' : 'color:var(--text-tertiary);'}">Despesas Anuais</button>
+            <button type="button" class="btn btn-ghost btn-sm annual-mode-btn ${annualMode === 'compare' ? 'active' : ''}" data-mode="compare" style="flex:1; font-size:11px; padding:6px 8px; white-space:nowrap; border-radius:6px; ${annualMode === 'compare' ? 'background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,0.06);color:var(--text);font-weight:600;' : 'color:var(--text-tertiary);'}">Comparativo</button>
+          </div>
+
+          <!-- Resumo Anual -->
+          ${annualMode === 'compare' ? `
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px; text-align:center;">
+              <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
+                <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Faturamento</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">↗ ${Utils.formatBRL(annualBilling.totalAnnual)}</div>
+              </div>
+              <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
+                <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Despesas</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">↘ ${Utils.formatBRL(annualExpenses.totalAnnual)}</div>
+              </div>
+              <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
+                <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Saldo no Ano</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">${Utils.formatBRL(annualBilling.totalAnnual - annualExpenses.totalAnnual)}</div>
+              </div>
+            </div>
+          ` : `
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px; text-align:center;">
+              <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
+                <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Total no Ano</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">${Utils.formatBRL(activeAnnualData.totalAnnual)}</div>
+              </div>
+              <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
+                <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Média Mensal</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">${Utils.formatBRL(activeAnnualData.avgMonthly)}</div>
+              </div>
+              <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
+                <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">${annualMode === 'expenses' ? 'Maior Gasto' : 'Melhor Mês'}</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">${activeAnnualData.bestMonth ? `${activeAnnualData.bestMonth.label} · ${Utils.formatBRL(activeAnnualData.bestMonth.amount)}` : '—'}</div>
+              </div>
+            </div>
+          `}
+
+          <div class="chart-canvas-wrapper short" style="height:220px; position:relative;">
+            <canvas id="annual-billing-chart" style="cursor:pointer;"></canvas>
+          </div>
+
+          <details id="annual-billing-details" class="details-animated" ${this._billingDetailsOpen ? 'open' : ''} style="margin-top:14px; text-align:center;">
+            <summary class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; list-style:none; color:var(--text-secondary); margin:0 auto;">
+              <span id="annual-billing-summary-label">${
+                this._billingDetailsOpen
+                  ? (annualMode === 'expenses' ? 'Ocultar Categorias' : annualMode === 'compare' ? 'Ocultar Comparativo' : 'Ocultar Distribuição')
+                  : (annualMode === 'expenses' ? 'Ver Categorias e Meses' : annualMode === 'compare' ? 'Ver Comparativo por Mês' : 'Ver Distribuição e Meses')
+              }</span>
+              <svg class="details-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </summary>
+
+            ${annualMode === 'compare' ? (() => {
+              const activeCompareMonths = annualBilling.monthlyData.filter((m, idx) => m.amount > 0 || annualExpenses.monthlyData[idx].amount > 0);
+              return `
+                <div style="margin-top:12px; text-align:left; display:grid; grid-template-columns:1fr; gap:6px;">
+                  ${activeCompareMonths.length === 0
+                    ? `<div style="text-align:center; color:var(--text-tertiary); font-size:13px; padding:10px 0;">Nenhuma movimentação registrada em ${this._selectedBillingYear}.</div>`
+                    : activeCompareMonths.map(m => {
+                        const expAmt = annualExpenses.monthlyData[m.monthIndex]?.amount || 0;
+                        const netAmt = m.amount - expAmt;
+                        return `
+                          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; border-bottom:1px solid var(--border-subtle); padding:8px 10px;">
+                            <span style="color:var(--text); font-weight:600; min-width:78px;">${m.fullName}</span>
+                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+                              <span style="color:var(--text-secondary);">↗ ${Utils.formatBRL(m.amount)}</span>
+                              <span style="color:var(--text-tertiary);">↘ ${Utils.formatBRL(expAmt)}</span>
+                              <span style="font-weight:700; color:var(--text); background:var(--bg); padding:2px 8px; border-radius:6px;">${Utils.formatBRL(netAmt)}</span>
+                            </div>
+                          </div>
+                        `;
+                      }).join('')
+                  }
+                </div>
+              `;
+            })() : (() => {
+              const selIdx = this._selectedBillingMonth;
+              const activeMonthsList = activeAnnualData.monthlyData.filter(m => m.amount > 0);
+              const selectedMonthObj = selIdx !== null ? activeAnnualData.monthlyData[selIdx] : null;
+              const currentBreakdown = selectedMonthObj ? selectedMonthObj.breakdown : activeAnnualData.annualBreakdown;
+              const currentTotal = selectedMonthObj ? selectedMonthObj.amount : activeAnnualData.totalAnnual;
+              const periodLabel = selectedMonthObj ? `${selectedMonthObj.fullName} de ${this._selectedBillingYear}` : `Ano ${this._selectedBillingYear} (Acumulado)`;
+              const monoShades = ['#111111', '#555555', '#8e8e93', '#b5b5b8', '#d1d1d6'];
+              const isExpMode = annualMode === 'expenses';
+
+              return `
+                <div style="margin-top:14px; text-align:left; background:var(--bg); border-radius:12px; padding:14px; border:1px solid var(--border-subtle);">
+                  <!-- Seletor Rápido de Mês (Pílulas estilo iOS) -->
+                  ${activeMonthsList.length > 0 ? `
+                    <div style="display:flex; align-items:center; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:10px; border-bottom:1px solid var(--border-subtle);">
+                      <button type="button" class="billing-month-pill" data-month-idx="" style="border:1px solid ${selIdx === null ? 'var(--text)' : 'var(--border)'}; background:${selIdx === null ? 'var(--text)' : 'var(--surface)'}; color:${selIdx === null ? 'var(--bg)' : 'var(--text-secondary)'}; font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:0.15s;">
+                        Ano Todo
+                      </button>
+                      ${activeMonthsList.map(m => {
+                        const isSel = selIdx === m.monthIndex;
+                        return `
+                          <button type="button" class="billing-month-pill" data-month-idx="${m.monthIndex}" style="border:1px solid ${isSel ? 'var(--text)' : 'var(--border)'}; background:${isSel ? 'var(--text)' : 'var(--surface)'}; color:${isSel ? 'var(--bg)' : 'var(--text-secondary)'}; font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; cursor:pointer; white-space:nowrap; transition:0.15s;">
+                            ${m.label}
+                          </button>
+                        `;
+                      }).join('')}
+                    </div>
+                  ` : ''}
+
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <div>
+                      <div style="font-size:11px; font-weight:600; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.4px;">
+                        ${isExpMode ? 'Despesas por Categoria' : 'Distribuição da Receita'}
+                      </div>
+                      <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:1px;">${periodLabel}</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-size:10px; color:var(--text-tertiary);">${isExpMode ? 'Total Gasto' : 'Total Faturado'}</div>
+                      <div style="font-size:13px; font-weight:700; color:var(--text);">${Utils.formatBRL(currentTotal)}</div>
+                    </div>
+                  </div>
+
+                  ${currentBreakdown.length === 0
+                    ? `<div style="font-size:12px; color:var(--text-tertiary); text-align:center; padding:8px 0;">${isExpMode ? 'Nenhuma despesa registrada neste período.' : 'Nenhuma distribuição registrada neste período.'}</div>`
+                    : `
+                      <!-- Barra de Proporção Segmentada -->
+                      <div style="display:flex; height:8px; width:100%; border-radius:999px; overflow:hidden; background:var(--border-subtle); margin-bottom:12px; gap:2px;">
+                        ${currentBreakdown.map((item, i) => `
+                          <div style="width:${Math.max(2, item.percentage).toFixed(1)}%; background:${monoShades[i % monoShades.length]}; height:100%;" title="${Utils.escapeHtml(isExpMode ? item.categoryName : item.walletName)}: ${item.percentage.toFixed(1)}%"></div>
+                        `).join('')}
+                      </div>
+
+                      <!-- Lista de Categorias ou Carteiras -->
+                      <div style="display:flex; flex-direction:column; gap:8px;">
+                        ${currentBreakdown.map((item, i) => `
+                          <div style="background:var(--surface); border:1px solid var(--border-subtle); border-radius:8px; padding:10px 12px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                              <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="width:10px; height:10px; border-radius:50%; background:${monoShades[i % monoShades.length]}; flex-shrink:0;"></span>
+                                <span style="font-size:13px; font-weight:600; color:var(--text);">${Utils.escapeHtml(isExpMode ? item.categoryName : item.walletName)}</span>
+                                <span style="font-size:11px; font-weight:700; color:var(--text); background:var(--bg); border:1px solid var(--border-subtle); padding:1px 7px; border-radius:999px;">${item.percentage.toFixed(1)}%</span>
+                              </div>
+                              <span style="font-size:13px; font-weight:700; color:var(--text);">${Utils.formatBRL(item.amount)}</span>
+                            </div>
+                            ${!isExpMode && item.boxes && item.boxes.length > 0 ? `
+                              <div style="margin-top:6px; padding-top:6px; border-top:1px dashed var(--border-subtle); display:flex; flex-wrap:wrap; gap:6px;">
+                                ${item.boxes.map(bx => `
+                                  <span style="font-size:11px; color:var(--text-secondary); background:var(--bg); padding:2px 8px; border-radius:6px;">
+                                    ↳ ${Utils.escapeHtml(bx.boxName)}: <strong>${bx.percentage}%</strong> (${Utils.formatBRL(bx.amount)})
+                                  </span>
+                                `).join('')}
+                              </div>
+                            ` : ''}
+                            ${isExpMode && item.wallets && item.wallets.length > 0 ? `
+                              <div style="margin-top:6px; padding-top:6px; border-top:1px dashed var(--border-subtle); display:flex; flex-wrap:wrap; gap:6px;">
+                                ${item.wallets.map(w => `
+                                  <span style="font-size:11px; color:var(--text-secondary); background:var(--bg); padding:2px 8px; border-radius:6px;">
+                                    ↳ ${Utils.escapeHtml(w.walletName)}: <strong>${w.percentage}%</strong> (${Utils.formatBRL(w.amount)})
+                                  </span>
+                                `).join('')}
+                              </div>
+                            ` : ''}
+                          </div>
+                        `).join('')}
+                      </div>
+                    `
+                  }
+                </div>
+
+                <div id="annual-billing-legend" style="margin-top:12px; text-align:left; display:grid; grid-template-columns:1fr; gap:6px;">
+                  ${activeAnnualData.totalAnnual === 0
+                    ? `<div style="text-align:center; color:var(--text-tertiary); font-size:13px; padding:10px 0;">${isExpMode ? 'Nenhuma despesa registrada em ' : 'Nenhum faturamento registrado em '}${this._selectedBillingYear}.</div>`
+                    : activeAnnualData.monthlyData.filter(m => m.amount > 0).map(m => {
+                        const pct = activeAnnualData.totalAnnual > 0 ? ((m.amount / activeAnnualData.totalAnnual) * 100).toFixed(1) : '0.0';
+                        const isBest = activeAnnualData.bestMonth && activeAnnualData.bestMonth.monthIndex === m.monthIndex;
+                        const isSelected = this._selectedBillingMonth === m.monthIndex;
+                        return `
+                          <div class="billing-month-row" data-month-idx="${m.monthIndex}" style="display:flex; justify-content:space-between; align-items:center; font-size:13px; border-bottom:1px solid var(--border-subtle); background:${isSelected ? 'var(--bg)' : 'transparent'}; border-radius:${isSelected ? '8px' : '0'}; padding:8px 10px; cursor:pointer; transition:0.15s;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                              <div style="width:10px; height:10px; border-radius:50%; background:${isBest || isSelected ? 'var(--text)' : 'var(--text-tertiary)'}"></div>
+                              <span style="color:var(--text-secondary); font-weight:${isBest || isSelected ? '600' : '400'}">${m.fullName}</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                              <span style="font-size:11px; color:var(--text-tertiary)">${pct}% do ano</span>
+                              <span style="font-weight:600; color:var(--text)">${Utils.formatBRL(m.amount)}</span>
+                            </div>
+                          </div>
+                        `;
+                      }).join('')
+                  }
+                </div>
+              `;
+            })()}
+          </details>
         </div>
       </div>
 
@@ -239,75 +493,6 @@ const DashboardPage = {
         `
       }
 
-      <!-- Card Dedicado: Faturamento Anual -->
-      <div class="card" style="margin-bottom:14px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); border:1px solid var(--border-subtle)">
-        <div class="card-header" style="border-bottom: 1px solid var(--border-subtle); padding-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <div class="card-title" style="font-size:13px; color:var(--text-secondary)">Faturamento Anual</div>
-            <div style="font-size:11px; font-weight:500; color:var(--text-tertiary); margin-top:2px">Evolução mensal e média do período</div>
-          </div>
-          <div style="display:inline-flex; align-items:center; background:var(--bg); border-radius:8px; padding:2px; border:1px solid var(--border-subtle);">
-            <button type="button" id="btn-billing-prev-year" title="Ano anterior" style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--text-secondary); cursor:pointer; border-radius:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            </button>
-            <span style="font-size:12px; font-weight:600; color:var(--text); padding:0 8px; min-width:44px; text-align:center;">${this._selectedBillingYear}</span>
-            <button type="button" id="btn-billing-next-year" title="Próximo ano" style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--text-secondary); cursor:pointer; border-radius:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </button>
-          </div>
-        </div>
-
-        <div class="card-body" style="padding:16px;">
-          <!-- Resumo Anual (Total, Média Mensal e Melhor Mês) -->
-          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px; text-align:center;">
-            <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
-              <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Total no Ano</div>
-              <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">${Utils.formatBRL(annualBilling.totalAnnual)}</div>
-            </div>
-            <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
-              <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Média Mensal</div>
-              <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">${Utils.formatBRL(annualBilling.avgMonthly)}</div>
-            </div>
-            <div style="background:var(--bg); padding:10px 6px; border-radius:8px;">
-              <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Melhor Mês</div>
-              <div style="font-size:13px; font-weight:600; color:var(--text); margin-top:3px">${annualBilling.bestMonth ? `${annualBilling.bestMonth.label} · ${Utils.formatBRL(annualBilling.bestMonth.amount)}` : '—'}</div>
-            </div>
-          </div>
-
-          <div class="chart-canvas-wrapper short" style="height:220px; position:relative;">
-            <canvas id="annual-billing-chart"></canvas>
-          </div>
-
-          <details class="details-animated" style="margin-top:14px; text-align:center;">
-            <summary class="btn btn-ghost btn-sm" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; list-style:none; color:var(--text-secondary); margin:0 auto;">
-              Ver Meses
-              <svg class="details-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </summary>
-            <div id="annual-billing-legend" style="margin-top:14px; text-align:left; display:grid; grid-template-columns:1fr; gap:8px;">
-              ${annualBilling.totalAnnual === 0
-                ? `<div style="text-align:center; color:var(--text-tertiary); font-size:13px; padding:10px 0;">Nenhum faturamento registrado em ${this._selectedBillingYear}.</div>`
-                : annualBilling.monthlyData.filter(m => m.amount > 0).map(m => {
-                    const pct = annualBilling.totalAnnual > 0 ? ((m.amount / annualBilling.totalAnnual) * 100).toFixed(1) : '0.0';
-                    const isBest = annualBilling.bestMonth && annualBilling.bestMonth.monthIndex === m.monthIndex;
-                    return `
-                      <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; border-bottom:1px solid var(--border-subtle); padding-bottom:8px;">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                          <div style="width:10px; height:10px; border-radius:50%; background:${isBest ? 'var(--text)' : 'var(--text-tertiary)'}"></div>
-                          <span style="color:var(--text-secondary); font-weight:${isBest ? '600' : '400'}">${m.fullName}</span>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                          <span style="font-size:11px; color:var(--text-tertiary)">${pct}%</span>
-                          <span style="font-weight:600; color:var(--text)">${Utils.formatBRL(m.amount)}</span>
-                        </div>
-                      </div>
-                    `;
-                  }).join('')
-              }
-            </div>
-          </details>
-        </div>
-      </div>
-
       ${(() => {
         // Obter nomes exatos das categorias do usuário
         const allCats = DB.getCategories();
@@ -422,17 +607,62 @@ const DashboardPage = {
       });
     }
 
-    this._renderAnnualBillingChart(annualBilling);
+    this._renderAnnualBillingChart(annualBilling, annualExpenses);
+
+    document.querySelectorAll('.annual-mode-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const mode = e.currentTarget.dataset.mode;
+        if (mode && this._annualViewMode !== mode) {
+          this._annualViewMode = mode;
+          this._selectedBillingMonth = null;
+          this.render(document.getElementById('content'));
+        }
+      });
+    });
 
     document.getElementById('btn-billing-prev-year')?.addEventListener('click', () => {
       this._selectedBillingYear -= 1;
+      this._selectedBillingMonth = null;
       this.render(document.getElementById('content'));
     });
 
     document.getElementById('btn-billing-next-year')?.addEventListener('click', () => {
       this._selectedBillingYear += 1;
+      this._selectedBillingMonth = null;
       this.render(document.getElementById('content'));
     });
+
+    document.querySelectorAll('.billing-month-pill').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const raw = e.currentTarget.dataset.monthIdx;
+        const idx = raw === '' ? null : parseInt(raw, 10);
+        this._selectedBillingMonth = idx;
+        this.render(document.getElementById('content'));
+      });
+    });
+
+    document.querySelectorAll('.billing-month-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.dataset.monthIdx, 10);
+        this._selectedBillingMonth = (this._selectedBillingMonth === idx) ? null : idx;
+        this._billingDetailsOpen = true;
+        this.render(document.getElementById('content'));
+      });
+    });
+
+    const billingDetailsEl = document.getElementById('annual-billing-details');
+    if (billingDetailsEl) {
+      billingDetailsEl.addEventListener('toggle', () => {
+        this._billingDetailsOpen = billingDetailsEl.open;
+        const lbl = document.getElementById('annual-billing-summary-label');
+        if (lbl) {
+          const m = this._annualViewMode || 'billing';
+          lbl.textContent = billingDetailsEl.open
+            ? (m === 'expenses' ? 'Ocultar Categorias' : m === 'compare' ? 'Ocultar Comparativo' : 'Ocultar Distribuição')
+            : (m === 'expenses' ? 'Ver Categorias e Meses' : m === 'compare' ? 'Ver Comparativo por Mês' : 'Ver Distribuição e Meses');
+        }
+      });
+    }
     
     const monthPicker = document.getElementById('dashboard-month-picker');
     if (monthPicker) {
@@ -444,6 +674,10 @@ const DashboardPage = {
 
     const gbr = document.getElementById('global-btn-report');
     if (gbr) gbr.onclick = () => this.openReportModal();
+
+    if (container && prevScroll > 0) {
+      container.scrollTop = prevScroll;
+    }
   },
 
   openReportModal() {
@@ -988,8 +1222,16 @@ const DashboardPage = {
 
   _getAnnualBillingData(year, transactions) {
     const billings = DB.getBillings();
+    const wallets = DB.getAllWallets ? DB.getAllWallets() : DB.getWallets();
+    const defaultRules = DB.getDistributions();
+    const allBoxes = DB.getBoxes();
+    const allBoxTxs = DB.getBoxTransactions();
+
     const shortMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const fullMonths = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+    const annualWalletMap = {};
+    const annualBoxMap = {};
 
     const monthlyData = shortMonths.map((label, idx) => {
       const mm = String(idx + 1).padStart(2, '0');
@@ -999,16 +1241,99 @@ const DashboardPage = {
       const billingIds = new Set(monthBillings.map(b => b.id));
       const billingSum = monthBillings.reduce((s, b) => s + Number(b.amount || 0), 0);
 
-      const extraIncome = transactions
-        .filter(t => t.type === 'income' && (!t.billingId || !billingIds.has(t.billingId)) && t.date && t.date.startsWith(mk))
-        .reduce((s, t) => s + Number(t.amount || 0), 0);
+      const extraIncomeTxs = transactions
+        .filter(t => t.type === 'income' && (!t.billingId || !billingIds.has(t.billingId)) && t.date && t.date.startsWith(mk));
+      const extraIncome = extraIncomeTxs.reduce((s, t) => s + Number(t.amount || 0), 0);
+
+      const totalMonthAmount = billingSum + extraIncome;
+      const walletMap = {};
+      const monthBoxMap = {};
+
+      monthBillings.forEach(b => {
+        const bDist = Array.isArray(b.distributions) ? b.distributions : [];
+        if (bDist.length > 0) {
+          bDist.forEach(d => {
+            const wId = d.walletId || 'unassigned';
+            const amt = Number(d.amount) || (Number(b.amount || 0) * Number(d.percentage || 0) / 100);
+            walletMap[wId] = (walletMap[wId] || 0) + amt;
+          });
+        } else {
+          const linkedTxs = transactions.filter(t => t.billingId === b.id && t.type === 'income');
+          if (linkedTxs.length > 0) {
+            linkedTxs.forEach(t => {
+              const wId = t.walletId || 'unassigned';
+              walletMap[wId] = (walletMap[wId] || 0) + Number(t.amount || 0);
+            });
+          } else if (defaultRules.length > 0) {
+            defaultRules.forEach(r => {
+              const wId = r.walletId || 'unassigned';
+              const amt = Number(b.amount || 0) * Number(r.percentage || 0) / 100;
+              walletMap[wId] = (walletMap[wId] || 0) + amt;
+            });
+          }
+        }
+
+        // Caixinhas vinculadas a este faturamento
+        let bBoxTxs = allBoxTxs.filter(tx => tx.billingId === b.id && tx.type === 'in');
+        if (bBoxTxs.length > 0) {
+          bBoxTxs.forEach(tx => {
+            monthBoxMap[tx.boxId] = (monthBoxMap[tx.boxId] || 0) + Number(tx.amount || 0);
+          });
+        } else if (bDist.length > 0) {
+          bDist.forEach(d => {
+            const wBoxes = allBoxes.filter(box => box.walletId === d.walletId && Number(box.percentage) > 0);
+            wBoxes.forEach(box => {
+              const bAmt = parseFloat((Number(d.amount || 0) * Number(box.percentage) / 100).toFixed(2));
+              if (bAmt > 0) {
+                monthBoxMap[box.id] = (monthBoxMap[box.id] || 0) + bAmt;
+              }
+            });
+          });
+        }
+      });
+
+      extraIncomeTxs.forEach(t => {
+        const wId = t.walletId || 'unassigned';
+        walletMap[wId] = (walletMap[wId] || 0) + Number(t.amount || 0);
+      });
+
+      Object.entries(walletMap).forEach(([wId, amt]) => {
+        annualWalletMap[wId] = (annualWalletMap[wId] || 0) + amt;
+      });
+      Object.entries(monthBoxMap).forEach(([bId, amt]) => {
+        annualBoxMap[bId] = (annualBoxMap[bId] || 0) + amt;
+      });
+
+      const breakdown = Object.entries(walletMap)
+        .filter(([, amt]) => amt > 0.009)
+        .map(([wId, amt]) => {
+          const w = wallets.find(x => x.id === wId);
+          const wBoxes = allBoxes
+            .filter(box => box.walletId === wId && (monthBoxMap[box.id] || 0) > 0.009)
+            .map(box => ({
+              boxId: box.id,
+              boxName: box.name,
+              percentage: amt > 0 ? Math.round((monthBoxMap[box.id] / amt) * 100) : (Number(box.percentage) || 0),
+              amount: monthBoxMap[box.id]
+            }));
+
+          return {
+            walletId: wId,
+            walletName: w ? w.name : 'Não alocado',
+            amount: amt,
+            percentage: totalMonthAmount > 0 ? (amt / totalMonthAmount) * 100 : 0,
+            boxes: wBoxes
+          };
+        })
+        .sort((a, b) => b.amount - a.amount);
 
       return {
         monthIndex: idx,
         monthKey: mk,
         label,
         fullName: fullMonths[idx],
-        amount: billingSum + extraIncome
+        amount: totalMonthAmount,
+        breakdown
       };
     });
 
@@ -1023,55 +1348,225 @@ const DashboardPage = {
       }
     });
 
-    return { monthlyData, totalAnnual, activeMonths, avgMonthly, bestMonth };
+    const annualBreakdown = Object.entries(annualWalletMap)
+      .filter(([, amt]) => amt > 0.009)
+      .map(([wId, amt]) => {
+        const w = wallets.find(x => x.id === wId);
+        const wBoxes = allBoxes
+          .filter(box => box.walletId === wId && (annualBoxMap[box.id] || 0) > 0.009)
+          .map(box => ({
+            boxId: box.id,
+            boxName: box.name,
+            percentage: amt > 0 ? Math.round((annualBoxMap[box.id] / amt) * 100) : (Number(box.percentage) || 0),
+            amount: annualBoxMap[box.id]
+          }));
+
+        return {
+          walletId: wId,
+          walletName: w ? w.name : 'Não alocado',
+          amount: amt,
+          percentage: totalAnnual > 0 ? (amt / totalAnnual) * 100 : 0,
+          boxes: wBoxes
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
+
+    return { monthlyData, totalAnnual, activeMonths, avgMonthly, bestMonth, annualBreakdown };
   },
 
-  _renderAnnualBillingChart(annualBilling) {
+  _getAnnualExpensesData(year, transactions) {
+    const categories = DB.getCategories();
+    const wallets = DB.getAllWallets ? DB.getAllWallets() : DB.getWallets();
+
+    const shortMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const fullMonths = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+    const annualCatMap = {};
+    const annualCatWalletMap = {};
+
+    const monthlyData = shortMonths.map((label, idx) => {
+      const mm = String(idx + 1).padStart(2, '0');
+      const mk = `${year}-${mm}`;
+
+      const monthExpenses = transactions.filter(t => t.type === 'expense' && t.date && t.date.startsWith(mk));
+      const totalMonthAmount = monthExpenses.reduce((s, t) => s + Number(t.amount || 0), 0);
+
+      const catMap = {};
+      const catWalletMap = {};
+
+      monthExpenses.forEach(t => {
+        const catObj = categories.find(x => x.id === t.categoryId);
+        const cName = catObj ? catObj.name : 'Outros';
+        const wId = t.walletId || 'unassigned';
+        const amt = Number(t.amount || 0);
+        catMap[cName] = (catMap[cName] || 0) + amt;
+        if (!catWalletMap[cName]) catWalletMap[cName] = {};
+        catWalletMap[cName][wId] = (catWalletMap[cName][wId] || 0) + amt;
+
+        annualCatMap[cName] = (annualCatMap[cName] || 0) + amt;
+        if (!annualCatWalletMap[cName]) annualCatWalletMap[cName] = {};
+        annualCatWalletMap[cName][wId] = (annualCatWalletMap[cName][wId] || 0) + amt;
+      });
+
+      const breakdown = Object.entries(catMap)
+        .filter(([, amt]) => amt > 0.009)
+        .map(([cName, amt]) => {
+          const wEntries = Object.entries(catWalletMap[cName] || {})
+            .filter(([, wAmt]) => wAmt > 0.009)
+            .map(([wId, wAmt]) => {
+              const w = wallets.find(x => x.id === wId);
+              return {
+                walletId: wId,
+                walletName: w ? w.name : 'Sem carteira',
+                percentage: amt > 0 ? Math.round((wAmt / amt) * 100) : 0,
+                amount: wAmt
+              };
+            })
+            .sort((a, b) => b.amount - a.amount);
+
+          return {
+            categoryId: cName,
+            categoryName: cName,
+            amount: amt,
+            percentage: totalMonthAmount > 0 ? (amt / totalMonthAmount) * 100 : 0,
+            wallets: wEntries
+          };
+        })
+        .sort((a, b) => b.amount - a.amount);
+
+      return {
+        monthIndex: idx,
+        monthKey: mk,
+        label,
+        fullName: fullMonths[idx],
+        amount: totalMonthAmount,
+        breakdown
+      };
+    });
+
+    const totalAnnual = monthlyData.reduce((s, m) => s + m.amount, 0);
+    const activeMonths = monthlyData.filter(m => m.amount > 0).length;
+    const avgMonthly = activeMonths > 0 ? (totalAnnual / activeMonths) : 0;
+
+    let bestMonth = null;
+    monthlyData.forEach(m => {
+      if (m.amount > 0 && (!bestMonth || m.amount > bestMonth.amount)) {
+        bestMonth = m;
+      }
+    });
+
+    const annualBreakdown = Object.entries(annualCatMap)
+      .filter(([, amt]) => amt > 0.009)
+      .map(([cName, amt]) => {
+        const wEntries = Object.entries(annualCatWalletMap[cName] || {})
+          .filter(([, wAmt]) => wAmt > 0.009)
+          .map(([wId, wAmt]) => {
+            const w = wallets.find(x => x.id === wId);
+            return {
+              walletId: wId,
+              walletName: w ? w.name : 'Sem carteira',
+              percentage: amt > 0 ? Math.round((wAmt / amt) * 100) : 0,
+              amount: wAmt
+            };
+          })
+          .sort((a, b) => b.amount - a.amount);
+
+        return {
+          categoryId: cName,
+          categoryName: cName,
+          amount: amt,
+          percentage: totalAnnual > 0 ? (amt / totalAnnual) * 100 : 0,
+          wallets: wEntries
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
+
+    return { monthlyData, totalAnnual, activeMonths, avgMonthly, bestMonth, annualBreakdown };
+  },
+
+  _renderAnnualBillingChart(annualBilling, annualExpenses) {
     const ctx = document.getElementById('annual-billing-chart');
     if (!ctx || typeof Chart === 'undefined') return;
 
+    const mode = this._annualViewMode || 'billing';
+    const activeData = mode === 'expenses' ? annualExpenses : annualBilling;
+
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const primaryBarColor = isDark ? '#eaeaeb' : '#111111';
-    const regularBarColor = isDark ? '#52525b' : '#8e8e93';
-    const hoverBarColor   = isDark ? '#ffffff' : '#000000';
-    const avgLineColor    = isDark ? '#a1a1aa' : '#555555';
-    const gridColor       = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+    const primaryBarColor = isDark ? '#f2f3f5' : '#1f2024';
+    const regularBarColor = isDark ? '#5a5d66' : '#9ca0a9';
+    const dimmedBarColor  = isDark ? '#35373d' : '#d8dbe2';
+    const hoverBarColor   = isDark ? '#ffffff' : '#141518';
+    const avgLineColor    = isDark ? '#a6aab2' : '#686b73';
+    const gridColor       = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)';
 
     const labels = annualBilling.monthlyData.map(m => m.label);
-    const values = annualBilling.monthlyData.map(m => m.amount);
-    const bestIdx = annualBilling.bestMonth ? annualBilling.bestMonth.monthIndex : -1;
+    let datasets = [];
 
-    const barColors = annualBilling.monthlyData.map((m, idx) =>
-      idx === bestIdx ? primaryBarColor : regularBarColor
-    );
+    if (mode === 'compare') {
+      datasets = [
+        {
+          type: 'bar',
+          label: 'Faturamento',
+          data: annualBilling.monthlyData.map(m => m.amount),
+          backgroundColor: primaryBarColor,
+          hoverBackgroundColor: hoverBarColor,
+          borderRadius: 4,
+          borderSkipped: false,
+          maxBarThickness: 14,
+          order: 2
+        },
+        {
+          type: 'bar',
+          label: 'Despesas',
+          data: annualExpenses.monthlyData.map(m => m.amount),
+          backgroundColor: isDark ? '#71717a' : '#b5b5b8',
+          hoverBackgroundColor: isDark ? '#a1a1aa' : '#8e8e93',
+          borderRadius: 4,
+          borderSkipped: false,
+          maxBarThickness: 14,
+          order: 2
+        }
+      ];
+    } else {
+      const values = activeData.monthlyData.map(m => m.amount);
+      const bestIdx = activeData.bestMonth ? activeData.bestMonth.monthIndex : -1;
+      const selIdx = this._selectedBillingMonth;
 
-    const datasets = [
-      {
-        type: 'bar',
-        label: 'Faturamento',
-        data: values,
-        backgroundColor: barColors,
-        hoverBackgroundColor: hoverBarColor,
-        borderRadius: 6,
-        borderSkipped: false,
-        maxBarThickness: 24,
-        order: 2
-      }
-    ];
-
-    if (annualBilling.avgMonthly > 0) {
-      datasets.push({
-        type: 'line',
-        label: 'Média Mensal',
-        data: Array(12).fill(annualBilling.avgMonthly),
-        borderColor: avgLineColor,
-        borderWidth: 1.5,
-        borderDash: [4, 4],
-        pointRadius: 0,
-        pointHoverRadius: 0,
-        fill: false,
-        order: 1
+      const barColors = activeData.monthlyData.map((m, idx) => {
+        if (selIdx !== null) {
+          return idx === selIdx ? primaryBarColor : dimmedBarColor;
+        }
+        return idx === bestIdx ? primaryBarColor : regularBarColor;
       });
+
+      datasets = [
+        {
+          type: 'bar',
+          label: mode === 'expenses' ? 'Despesas' : 'Faturamento',
+          data: values,
+          backgroundColor: barColors,
+          hoverBackgroundColor: hoverBarColor,
+          borderRadius: 6,
+          borderSkipped: false,
+          maxBarThickness: 24,
+          order: 2
+        }
+      ];
+
+      if (activeData.avgMonthly > 0) {
+        datasets.push({
+          type: 'line',
+          label: 'Média Mensal',
+          data: Array(12).fill(activeData.avgMonthly),
+          borderColor: avgLineColor,
+          borderWidth: 1.5,
+          borderDash: [4, 4],
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          fill: false,
+          order: 1
+        });
+      }
     }
 
     this._annualBillingChartInstance = new Chart(ctx, {
@@ -1083,15 +1578,51 @@ const DashboardPage = {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (evt, elements) => {
+          if (mode === 'compare') return;
+          if (elements && elements.length > 0) {
+            const clickedIdx = elements[0].index;
+            if (activeData.monthlyData[clickedIdx]?.amount > 0) {
+              this._selectedBillingMonth = (this._selectedBillingMonth === clickedIdx) ? null : clickedIdx;
+              this._billingDetailsOpen = true;
+              this.render(document.getElementById('content'));
+            }
+          }
+        },
         interaction: {
           mode: 'index',
           intersect: false
         },
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: mode === 'compare',
+            position: 'top',
+            labels: {
+              boxWidth: 10,
+              boxHeight: 10,
+              usePointStyle: true,
+              pointStyle: 'circle',
+              font: { family: 'Inter', size: 11 }
+            }
+          },
           tooltip: {
             callbacks: {
-              label: (c) => ` ${c.dataset.label}: ${Utils.formatBRL(c.raw)}`
+              label: (c) => ` ${c.dataset.label}: ${Utils.formatBRL(c.raw)}`,
+              afterBody: (items) => {
+                if (!items || items.length === 0) return [];
+                const idx = items[0].dataIndex;
+                if (mode === 'compare') {
+                  const inc = annualBilling.monthlyData[idx]?.amount || 0;
+                  const exp = annualExpenses.monthlyData[idx]?.amount || 0;
+                  return [`  Saldo do Mês: ${Utils.formatBRL(inc - exp)}`];
+                }
+                const mObj = activeData.monthlyData[idx];
+                if (!mObj || !mObj.breakdown || mObj.breakdown.length === 0) return [];
+                return mObj.breakdown.map(d => {
+                  const itemName = mode === 'expenses' ? d.categoryName : d.walletName;
+                  return `  • ${itemName}: ${d.percentage.toFixed(0)}% (${Utils.formatBRL(d.amount)})`;
+                });
+              }
             }
           }
         },
@@ -1121,7 +1652,7 @@ const DashboardPage = {
             }
           }
         },
-        animation: { duration: 500, easing: 'easeOutQuart' }
+        animation: { duration: 400, easing: 'easeOutQuart' }
       }
     });
   }
